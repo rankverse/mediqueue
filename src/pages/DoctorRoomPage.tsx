@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Brain,
   Stethoscope, 
   Users, 
   Clock, 
@@ -24,12 +23,7 @@ import {
   Volume2,
   VolumeX,
   Settings,
-  LogOut,
-  Sparkles,
-  Zap,
-  Award,
-  Target,
-  TrendingUp
+  LogOut
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -40,7 +34,6 @@ import { VoiceNoteRecorder } from '../components/VoiceNoteRecorder';
 import { useDoctorSession } from '../hooks/useDoctorSession';
 import { useAuth } from '../hooks/useAuth';
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
-import { useRealTimeUpdates } from '../hooks/useRealTimeUpdates';
 import { supabase } from '../lib/supabase';
 import { formatTime, formatDate } from '../lib/utils';
 import { Doctor, Visit, Consultation, ConsultationNote } from '../types';
@@ -66,19 +59,6 @@ export const DoctorRoomPage: React.FC = () => {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTranscript, setRecordingTranscript] = useState('');
-
-  // Real-time updates
-  useRealTimeUpdates(() => {
-    refetch();
-  });
-
-  // Enhanced state for better UX
-  const [sessionStats, setSessionStats] = useState({
-    totalPatients: 0,
-    avgConsultationTime: 0,
-    patientSatisfaction: 0,
-    efficiency: 0
-  });
 
   const {
     session,
@@ -141,27 +121,7 @@ export const DoctorRoomPage: React.FC = () => {
   // Fetch doctors on component mount
   useEffect(() => {
     fetchDoctors();
-    if (session) {
-      calculateSessionStats();
-    }
   }, []);
-
-  // Calculate session statistics
-  const calculateSessionStats = () => {
-    const completedConsultations = consultations.filter(c => c.status === 'completed');
-    const totalTime = completedConsultations.reduce((sum, c) => sum + (c.duration_minutes || 0), 0);
-    
-    setSessionStats({
-      totalPatients: consultations.length,
-      avgConsultationTime: completedConsultations.length > 0 ? totalTime / completedConsultations.length : 0,
-      patientSatisfaction: 4.2, // Mock data - would come from feedback
-      efficiency: consultations.length > 0 ? (completedConsultations.length / consultations.length) * 100 : 0
-    });
-  };
-
-  useEffect(() => {
-    calculateSessionStats();
-  }, [consultations]);
 
   // Announce new patients
   useEffect(() => {
@@ -412,7 +372,7 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
   // Login check
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 text-center">
             <Stethoscope className="h-12 w-12 text-blue-600 mx-auto mb-4" />
@@ -428,34 +388,18 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-40">
+      <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <Stethoscope className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-900">Doctor Console</h1>
-                  <p className="text-xs text-gray-500">Advanced Consultation Platform</p>
-                </div>
-              </div>
+              <Stethoscope className="h-8 w-8 text-blue-600 mr-3" />
+              <h1 className="text-2xl font-bold text-gray-900">Doctor Room</h1>
               {session && (
-                <div className="ml-4 flex items-center space-x-2">
-                  <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                    {session.room_name}
-                  </span>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    session.session_status === 'active' ? 'bg-green-100 text-green-800' :
-                    session.session_status === 'break' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {session.session_status.toUpperCase()}
-                  </span>
-                </div>
+                <span className="ml-4 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                  {session.room_name} - {session.session_status.toUpperCase()}
+                </span>
               )}
             </div>
             <div className="flex items-center space-x-4">
@@ -517,7 +461,7 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 shadow-sm">
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex items-center">
               <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
               <p className="text-red-800">{error}</p>
@@ -527,131 +471,47 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
 
         {!session ? (
           <div className="text-center py-12">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Stethoscope className="h-10 w-10 text-blue-600" />
-            </div>
+            <Stethoscope className="h-16 w-16 text-gray-400 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-4">No Active Session</h2>
             <p className="text-gray-600 mb-6">Start a new session to begin consultations</p>
-            <Button onClick={() => setShowStartModal(true)} size="lg" className="px-8">
-              <Sparkles className="h-5 w-5 mr-2" />
+            <Button onClick={() => setShowStartModal(true)}>
               Start New Session
             </Button>
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Enhanced Session Stats */}
+            {/* Session Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+              <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center">
-                    <div className="p-3 bg-white bg-opacity-20 rounded-lg">
-                      <Users className="h-8 w-8" />
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Users className="h-6 w-6 text-blue-600" />
                     </div>
                     <div className="ml-4">
-                      <p className="text-blue-100 text-sm font-medium">Waiting</p>
-                      <p className="text-3xl font-bold">{waitingPatients.length}</p>
-                      <p className="text-blue-100 text-xs">Patients in queue</p>
+                      <p className="text-sm font-medium text-gray-600">Waiting</p>
+                      <p className="text-2xl font-bold text-gray-900">{waitingPatients.length}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+              <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center">
-                    <div className="p-3 bg-white bg-opacity-20 rounded-lg">
-                      <CheckCircle className="h-8 w-8" />
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <CheckCircle className="h-6 w-6 text-green-600" />
                     </div>
                     <div className="ml-4">
-                      <p className="text-green-100 text-sm font-medium">Completed</p>
-                      <p className="text-3xl font-bold">
+                      <p className="text-sm font-medium text-gray-600">Completed</p>
+                      <p className="text-2xl font-bold text-gray-900">
                         {consultations.filter(c => c.status === 'completed').length}
                       </p>
-                      <p className="text-green-100 text-xs">Consultations done</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
-                <CardContent className="pt-6">
-                  <div className="flex items-center">
-                    <div className="p-3 bg-white bg-opacity-20 rounded-lg">
-                      <Clock className="h-8 w-8" />
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-purple-100 text-sm font-medium">Avg Time</p>
-                      <p className="text-3xl font-bold">
-                        {sessionStats.avgConsultationTime.toFixed(0)}m
-                      </p>
-                      <p className="text-purple-100 text-xs">Per consultation</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
-                <CardContent className="pt-6">
-                  <div className="flex items-center">
-                    <div className="p-3 bg-white bg-opacity-20 rounded-lg">
-                      <TrendingUp className="h-8 w-8" />
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-orange-100 text-sm font-medium">Efficiency</p>
-                      <p className="text-3xl font-bold">
-                        {sessionStats.efficiency.toFixed(0)}%
-                      </p>
-                      <p className="text-orange-100 text-xs">Completion rate</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Session Overview */}
-            <Card className="shadow-xl">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-gray-900 flex items-center">
-                    <Activity className="h-5 w-5 mr-2 text-blue-500" />
-                    Session Overview
-                  </h3>
-                  <div className="flex items-center space-x-4 text-sm text-gray-600">
-                    <div className="flex items-center">
-                      <Clock className="h-4 w-4 mr-1" />
-                      <span>Started: {formatTime(session.started_at)}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Target className="h-4 w-4 mr-1" />
-                      <span>Duration: {Math.floor((Date.now() - new Date(session.started_at).getTime()) / (1000 * 60))}m</span>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="bg-blue-50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-600">{sessionStats.totalPatients}</div>
-                    <div className="text-sm text-blue-700">Total Patients</div>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-green-600">{sessionStats.avgConsultationTime.toFixed(0)}m</div>
-                    <div className="text-sm text-green-700">Avg Consultation</div>
-                  </div>
-                  <div className="bg-purple-50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-purple-600">{sessionStats.patientSatisfaction.toFixed(1)}/5</div>
-                    <div className="text-sm text-purple-700">Satisfaction</div>
-                  </div>
-                  <div className="bg-orange-50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-orange-600">{sessionStats.efficiency.toFixed(0)}%</div>
-                    <div className="text-sm text-orange-700">Efficiency</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Session Time Display */}
-            <div className="hidden">
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center">
@@ -667,21 +527,34 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
                   </div>
                 </CardContent>
               </Card>
+
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                      <Activity className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">Status</p>
+                      <p className="text-lg font-bold text-purple-900 capitalize">
+                        {session.session_status.replace('_', ' ')}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Current Patient */}
             {currentPatient && (
-              <Card className="border-l-4 border-green-500 shadow-xl bg-gradient-to-r from-green-50 to-green-100">
+              <Card className="border-l-4 border-green-500">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-bold text-green-800 flex items-center">
-                      <Zap className="h-5 w-5 mr-2" />
-                      Current Patient
-                    </h3>
+                    <h3 className="text-lg font-semibold text-green-800">Current Patient</h3>
                     <div className="flex space-x-2">
                       <Button
                         onClick={() => setShowPrescriptionModal(true)}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        size="sm"
                       >
                         <FileText className="h-4 w-4 mr-2" />
                         Write Prescription
@@ -690,7 +563,7 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
                         onClick={() => handleCompleteConsultation(
                           consultations.find(c => c.visit_id === currentPatient.id)?.id || ''
                         )}
-                        className="bg-green-600 hover:bg-green-700"
+                        variant="secondary"
                         size="sm"
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
@@ -776,19 +649,15 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
             {/* Queue and Voice Notes */}
             <div className="grid md:grid-cols-2 gap-6">
               {/* Waiting Queue */}
-              <Card className="shadow-xl">
+              <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold flex items-center">
-                      <Users className="h-5 w-5 mr-2 text-blue-500" />
-                      Waiting Queue ({waitingPatients.length})
-                    </h3>
+                    <h3 className="text-lg font-semibold">Waiting Queue ({waitingPatients.length})</h3>
                     <Button
                       onClick={handleCallNext}
                       disabled={waitingPatients.length === 0 || !!currentPatient}
-                      className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                      size="sm"
                     >
-                      <Zap className="h-4 w-4 mr-2" />
                       Call Next
                     </Button>
                   </div>
@@ -796,9 +665,9 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
                 <CardContent>
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {waitingPatients.map((patient, index) => (
-                      <div key={patient.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg border border-gray-200 hover:shadow-md transition-all duration-200">
+                      <div key={patient.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div>
-                          <div className="font-semibold text-gray-900">
+                          <div className="font-medium text-gray-900">
                             #{patient.stn} - {patient.patient?.name}
                           </div>
                           <div className="text-sm text-gray-600">
@@ -809,16 +678,15 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-sm font-bold text-blue-600 mb-2">
+                          <div className="text-sm font-medium text-blue-600">
                             Position: {index + 1}
                           </div>
                           <Button
-                            size="sm" 
-                            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                            size="sm"
+                            variant="outline"
                             onClick={() => startConsultation(patient.id)}
                             disabled={!!currentPatient}
                           >
-                            <Play className="h-3 w-3 mr-1" />
                             Start
                           </Button>
                         </div>
@@ -827,11 +695,8 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
 
                     {waitingPatients.length === 0 && (
                       <div className="text-center py-8 text-gray-500">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Users className="h-8 w-8 text-gray-300" />
-                        </div>
+                        <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                         <p>No patients waiting</p>
-                        <p className="text-sm mt-2">Patients will appear here as they check in</p>
                       </div>
                     )}
                   </div>
@@ -849,17 +714,14 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
             </div>
 
             {/* Recent Consultations */}
-            <Card className="shadow-xl">
+            <Card>
               <CardHeader>
-                <h3 className="text-lg font-semibold flex items-center">
-                  <FileText className="h-5 w-5 mr-2 text-green-500" />
-                  Today's Consultations ({consultations.length})
-                </h3>
+                <h3 className="text-lg font-semibold">Today's Consultations</h3>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3 max-h-64 overflow-y-auto">
                   {consultations.map((consultation) => (
-                    <div key={consultation.id} className="flex items-center justify-between p-4 border rounded-lg hover:shadow-md transition-all duration-200 bg-gradient-to-r from-white to-gray-50">
+                    <div key={consultation.id} className="flex items-center justify-between p-3 border rounded-lg">
                       <div>
                         <div className="font-medium text-gray-900">
                           {consultation.patient?.name} - Token #{consultation.visit?.stn}
@@ -882,11 +744,8 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
 
                   {consultations.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
-                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <FileText className="h-8 w-8 text-gray-300" />
-                      </div>
+                      <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                       <p>No consultations today</p>
-                      <p className="text-sm mt-2">Completed consultations will appear here</p>
                     </div>
                   )}
                 </div>
@@ -900,7 +759,7 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
       <Modal
         isOpen={showStartModal}
         onClose={() => {}}
-        title="🚀 Start Advanced Doctor Session"
+        title="Start Doctor Session"
         size="md"
       >
         <div className="space-y-4">
@@ -926,7 +785,7 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
             required
           />
 
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h4 className="font-medium text-blue-900 mb-2">Session Features:</h4>
             <ul className="text-sm text-blue-800 space-y-1">
               <li>• Voice announcements for new patients</li>
@@ -942,7 +801,6 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
             disabled={!selectedDoctorId || !roomName.trim()}
             className="w-full"
           >
-            <Sparkles className="h-4 w-4 mr-2" />
             Start Session
           </Button>
         </div>
@@ -952,7 +810,7 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
       <Modal
         isOpen={showPrescriptionModal}
         onClose={() => setShowPrescriptionModal(false)}
-        title="📋 Digital Prescription System"
+        title="Digital Prescription"
         size="xl"
       >
         <div className="space-y-6">
@@ -984,13 +842,10 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
 
           {/* Voice Recording for Prescription */}
           {voiceSupported && (
-            <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
+            <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <h4 className="font-medium flex items-center">
-                    <Brain className="h-4 w-4 mr-2 text-purple-600" />
-                    AI Voice Dictation
-                  </h4>
+                  <h4 className="font-medium">Voice Dictation</h4>
                   <Button
                     onClick={toggleRecording}
                     variant={isRecording ? 'danger' : 'outline'}
@@ -1002,7 +857,7 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="min-h-[80px] p-4 border border-purple-300 rounded-lg bg-white shadow-sm">
+                <div className="min-h-[60px] p-3 border border-gray-300 rounded bg-gray-50">
                   <p className="text-sm text-gray-900">
                     {recordingTranscript || interimTranscript || 'Click "Start Recording" to dictate prescription...'}
                   </p>
@@ -1010,8 +865,7 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
                 {recordingTranscript && (
                   <div className="mt-2 flex space-x-2">
                     <Button
-                      size="sm" 
-                      className="bg-blue-500 hover:bg-blue-600"
+                      size="sm"
                       onClick={() => {
                         setCurrentPrescription(prev => ({
                           ...prev,
@@ -1024,7 +878,6 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
                     </Button>
                     <Button
                       size="sm"
-                      className="bg-green-500 hover:bg-green-600"
                       onClick={() => {
                         setCurrentPrescription(prev => ({
                           ...prev,
@@ -1044,10 +897,7 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
           {/* Medicines */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h4 className="font-medium text-gray-900 flex items-center">
-                <Plus className="h-4 w-4 mr-2 text-green-500" />
-                Prescription Medicines
-              </h4>
+              <h4 className="font-medium text-gray-900">Medicines</h4>
               <Button onClick={addMedicine} size="sm">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Medicine
@@ -1056,19 +906,14 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
 
             <div className="space-y-4">
               {currentPrescription.medicines.map((medicine, index) => (
-                <Card key={index} className="border-2 border-gray-200 hover:border-blue-300 transition-colors">
+                <Card key={index}>
                   <CardContent className="pt-4">
                     <div className="flex items-start justify-between mb-4">
-                      <h5 className="font-medium text-gray-900 flex items-center">
-                        <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2">
-                          <span className="text-xs font-bold text-blue-600">{index + 1}</span>
-                        </div>
-                        Medicine {index + 1}
-                      </h5>
+                      <h5 className="font-medium text-gray-900">Medicine {index + 1}</h5>
                       {currentPrescription.medicines.length > 1 && (
                         <Button
                           onClick={() => removeMedicine(index)}
-                          variant="danger"
+                          variant="outline"
                           size="sm"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -1171,14 +1016,15 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
             </Button>
             <Button
               onClick={printPrescription}
-              className="flex-1 bg-blue-600 hover:bg-blue-700"
+              variant="outline"
+              className="flex-1"
             >
               <Printer className="h-4 w-4 mr-2" />
               Print Preview
             </Button>
             <Button
               onClick={savePrescription}
-              className="flex-1 bg-green-600 hover:bg-green-700"
+              className="flex-1"
             >
               <Save className="h-4 w-4 mr-2" />
               Save Prescription
