@@ -13,7 +13,23 @@ import {
   UserSearch,
   TrendingUp,
   DollarSign,
-  Stethoscope
+  Stethoscope,
+  Calendar,
+  Bell,
+  Filter,
+  Download,
+  Upload,
+  RefreshCw,
+  AlertCircle,
+  CheckSquare,
+  XSquare,
+  Pause,
+  Play,
+  MessageSquare,
+  FileText,
+  PieChart,
+  BarChart,
+  Activity
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -24,6 +40,9 @@ import { QRScanner } from '../components/QRScanner';
 import { PatientLookup } from '../components/PatientLookup';
 import { PatientDetailModal } from '../components/PatientDetailModal';
 import { SettingsPanel } from '../components/SettingsPanel';
+import { AppointmentBooking } from '../components/AppointmentBooking';
+import { AdvancedAnalytics } from '../components/AdvancedAnalytics';
+import { NotificationCenter } from '../components/NotificationCenter';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { useAuth } from '../hooks/useAuth';
 import { useQueue } from '../hooks/useQueue';
@@ -31,7 +50,7 @@ import { useAnalytics } from '../hooks/useAnalytics';
 import { useRealTimeUpdates } from '../hooks/useRealTimeUpdates';
 import { useTranslation } from '../lib/translations';
 import { supabase } from '../lib/supabase';
-import { Visit, Patient, PaymentTransaction } from '../types';
+import { Visit, Patient, PaymentTransaction, Appointment } from '../types';
 import { formatTime, formatRelativeTime, getStatusColor, getPaymentStatusColor } from '../lib/utils';
 import { QRPayload, parseQRCode } from '../lib/qr';
 
@@ -46,6 +65,9 @@ export const AdminPage: React.FC = () => {
   const [showPatientDetail, setShowPatientDetail] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [showSettings, setShowSettings] = useState(false);
+  const [showAppointments, setShowAppointments] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [showVisitModal, setShowVisitModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -54,12 +76,18 @@ export const AdminPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('today');
+  const [priorityFilter, setPriorityFilter] = useState('');
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginLoading, setLoginLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(15);
+  const [selectedVisits, setSelectedVisits] = useState<string[]>([]);
+  const [bulkAction, setBulkAction] = useState('');
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Auto-refresh functionality
   useEffect(() => {
@@ -409,9 +437,31 @@ export const AdminPage: React.FC = () => {
             <div className="flex items-center">
               <Users className="h-8 w-8 text-blue-600 mr-3" />
               <h1 className="text-2xl font-bold text-gray-900">{t('admin_dashboard')}</h1>
+              <div className="ml-4 flex items-center space-x-2">
+                <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-sm text-green-600 font-medium">Live</span>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
               <LanguageSwitcher />
+              
+              {/* Notification Bell */}
+              <div className="relative">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowNotifications(true)}
+                  className="relative"
+                >
+                  <Bell className="h-4 w-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </Button>
+              </div>
+              
               <div className="flex items-center space-x-2 text-sm">
                 <input
                   type="checkbox"
@@ -434,6 +484,25 @@ export const AdminPage: React.FC = () => {
                   <option value={60}>60s</option>
                 </select>
               </div>
+              
+              <Button 
+                onClick={() => setShowAppointments(true)}
+                variant="outline"
+                size="sm"
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                Appointments
+              </Button>
+              
+              <Button 
+                onClick={() => setShowAnalytics(true)}
+                variant="outline"
+                size="sm"
+              >
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Analytics
+              </Button>
+              
               <Button 
                 onClick={() => setShowScanner(true)}
                 size="sm"
@@ -475,17 +544,42 @@ export const AdminPage: React.FC = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Success/Error Messages */}
+        {success && (
+          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+              <p className="text-green-800">{success}</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setSuccess('')}>
+              <XSquare className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+        
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center">
+              <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+              <p className="text-red-800">{error}</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setError('')}>
+              <XSquare className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-8">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center">
-                <div className="p-2 bg-blue-100 rounded-lg">
+                <div className="p-3 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl shadow-sm">
                   <Clock className="h-6 w-6 text-blue-600" />
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">{t('now_serving')}</p>
-                  <p className="text-2xl font-bold text-gray-900">{queueStatus.now_serving}</p>
+                  <p className="text-3xl font-bold text-blue-600">{queueStatus.now_serving}</p>
+                  <p className="text-xs text-blue-500">Current Token</p>
                 </div>
               </div>
             </CardContent>
@@ -494,12 +588,13 @@ export const AdminPage: React.FC = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center">
-                <div className="p-2 bg-yellow-100 rounded-lg">
+                <div className="p-3 bg-gradient-to-br from-yellow-100 to-yellow-200 rounded-xl shadow-sm">
                   <Users className="h-6 w-6 text-yellow-600" />
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">{t('total_waiting')}</p>
-                  <p className="text-2xl font-bold text-gray-900">{queueStatus.total_waiting}</p>
+                  <p className="text-3xl font-bold text-yellow-600">{queueStatus.total_waiting}</p>
+                  <p className="text-xs text-yellow-500">In Queue</p>
                 </div>
               </div>
             </CardContent>
@@ -508,14 +603,15 @@ export const AdminPage: React.FC = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center">
-                <div className="p-2 bg-green-100 rounded-lg">
+                <div className="p-3 bg-gradient-to-br from-green-100 to-green-200 rounded-xl shadow-sm">
                   <CheckCircle className="h-6 w-6 text-green-600" />
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">{t('completed_today')}</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-3xl font-bold text-green-600">
                     {visits.filter(v => v.status === 'completed').length}
                   </p>
+                  <p className="text-xs text-green-500">Served</p>
                 </div>
               </div>
             </CardContent>
@@ -524,12 +620,13 @@ export const AdminPage: React.FC = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center">
-                <div className="p-2 bg-blue-100 rounded-lg">
+                <div className="p-3 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl shadow-sm">
                   <Users className="h-6 w-6 text-blue-600" />
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">{t('total_visits')}</p>
-                  <p className="text-2xl font-bold text-gray-900">{visits.length}</p>
+                  <p className="text-3xl font-bold text-purple-600">{visits.length}</p>
+                  <p className="text-xs text-purple-500">Today</p>
                 </div>
               </div>
             </CardContent>
@@ -538,14 +635,15 @@ export const AdminPage: React.FC = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center">
-                <div className="p-2 bg-green-100 rounded-lg">
+                <div className="p-3 bg-gradient-to-br from-emerald-100 to-emerald-200 rounded-xl shadow-sm">
                   <DollarSign className="h-6 w-6 text-green-600" />
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">{t('today_revenue')}</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-3xl font-bold text-emerald-600">
                     ₹{analytics?.today.revenue.toFixed(0) || 0}
                   </p>
+                  <p className="text-xs text-emerald-500">Revenue</p>
                 </div>
               </div>
             </CardContent>
@@ -554,14 +652,15 @@ export const AdminPage: React.FC = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center">
-                <div className="p-2 bg-purple-100 rounded-lg">
+                <div className="p-3 bg-gradient-to-br from-orange-100 to-orange-200 rounded-xl shadow-sm">
                   <TrendingUp className="h-6 w-6 text-purple-600" />
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">{t('avg_wait')}</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-3xl font-bold text-orange-600">
                     {analytics?.today.average_wait_time || 15}m
                   </p>
+                  <p className="text-xs text-orange-500">Average</p>
                 </div>
               </div>
             </CardContent>
@@ -622,9 +721,42 @@ export const AdminPage: React.FC = () => {
         )}
 
         {/* Filters */}
-        <Card className="mb-8">
+        <Card className="mb-8 bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-gray-200">
           <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <Filter className="h-5 w-5 mr-2" />
+                Advanced Filters
+              </h3>
+              <div className="flex items-center space-x-2">
+                {selectedVisits.length > 0 && (
+                  <>
+                    <span className="text-sm text-gray-600">
+                      {selectedVisits.length} selected
+                    </span>
+                    <Select
+                      value={bulkAction}
+                      onChange={(e) => setBulkAction(e.target.value)}
+                      options={[
+                        { value: '', label: 'Bulk Actions' },
+                        { value: 'check_in', label: 'Check In All' },
+                        { value: 'complete', label: 'Complete All' },
+                        { value: 'hold', label: 'Hold All' },
+                        { value: 'export', label: 'Export Selected' }
+                      ]}
+                    />
+                    <Button size="sm" onClick={() => handleBulkAction()}>
+                      Apply
+                    </Button>
+                  </>
+                )}
+                <Button variant="outline" size="sm" onClick={() => exportData()}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
               <Input
                 placeholder="Search by STN, UID, name, or phone..."
                 value={searchQuery}
@@ -643,20 +775,69 @@ export const AdminPage: React.FC = () => {
                 onChange={(e) => setDepartmentFilter(e.target.value)}
                 placeholder="Filter by department"
               />
+              <Select
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                options={[
+                  { value: 'today', label: 'Today' },
+                  { value: 'yesterday', label: 'Yesterday' },
+                  { value: 'week', label: 'This Week' },
+                  { value: 'month', label: 'This Month' }
+                ]}
+              />
+              <Select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                options={[
+                  { value: '', label: 'All Priority' },
+                  { value: 'urgent', label: 'Urgent' },
+                  { value: 'high', label: 'High' },
+                  { value: 'normal', label: 'Normal' },
+                  { value: 'low', label: 'Low' }
+                ]}
+              />
             </div>
           </CardContent>
         </Card>
 
         {/* Queue Table */}
-        <Card>
+        <Card className="shadow-xl border-2 border-gray-200">
           <CardHeader>
-            <h2 className="text-xl font-semibold text-gray-900">{t('todays_queue')}</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                <Activity className="h-6 w-6 mr-2 text-blue-600" />
+                {t('todays_queue')} ({filteredVisits.length})
+              </h2>
+              <div className="flex items-center space-x-2">
+                <Button variant="outline" size="sm" onClick={() => refetch()}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+                <div className="flex items-center space-x-1 bg-green-100 px-2 py-1 rounded-full">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-xs text-green-700 font-medium">Auto-updating</span>
+                </div>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <input
+                        type="checkbox"
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedVisits(filteredVisits.map(v => v.id));
+                          } else {
+                            setSelectedVisits([]);
+                          }
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t('token')}
                     </th>
@@ -682,9 +863,23 @@ export const AdminPage: React.FC = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredVisits.map((visit) => (
-                    <tr key={visit.id} className="hover:bg-gray-50">
+                    <tr key={visit.id} className="hover:bg-blue-50 transition-colors duration-200">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-lg font-bold text-gray-900">#{visit.stn}</div>
+                        <input
+                          type="checkbox"
+                          checked={selectedVisits.includes(visit.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedVisits([...selectedVisits, visit.id]);
+                            } else {
+                              setSelectedVisits(selectedVisits.filter(id => id !== visit.id));
+                            }
+                          }}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-xl font-bold text-blue-600">#{visit.stn}</div>
                         <div className="text-sm text-gray-500">{visit.patient?.uid}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -695,7 +890,7 @@ export const AdminPage: React.FC = () => {
                               setSelectedPatientId(visit.patient_id);
                               setShowPatientDetail(true);
                             }}
-                            className="ml-2 text-blue-600 hover:text-blue-800 text-xs underline"
+                            className="ml-2 text-blue-600 hover:text-blue-800 text-xs underline hover:bg-blue-100 px-1 rounded"
                           >
                             View Profile
                           </button>
@@ -705,17 +900,17 @@ export const AdminPage: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-900 capitalize">
+                        <span className="text-sm text-gray-900 capitalize font-medium">
                           {visit.department}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getStatusColor(visit.status)}`}>
+                        <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full border-2 ${getStatusColor(visit.status)} shadow-sm`}>
                           {visit.status.replace('_', ' ').toUpperCase()}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPaymentStatusColor(visit.payment_status)}`}>
+                        <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full ${getPaymentStatusColor(visit.payment_status)} shadow-sm`}>
                           {visit.payment_status.replace('_', ' ').toUpperCase()}
                         </span>
                       </td>
@@ -724,7 +919,7 @@ export const AdminPage: React.FC = () => {
                         <div>{formatRelativeTime(visit.created_at)}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
+                        <div className="flex space-x-1">
                           <Button
                             size="sm"
                             variant="outline"
@@ -732,6 +927,7 @@ export const AdminPage: React.FC = () => {
                               setSelectedVisit(visit);
                               setShowVisitModal(true);
                             }}
+                            className="hover:bg-blue-100"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -742,8 +938,9 @@ export const AdminPage: React.FC = () => {
                               onClick={async () => {
                                 await updateVisitStatus(visit.id, 'checked_in');
                               }}
+                              className="bg-green-600 hover:bg-green-700"
                             >
-                              {t('check_in')}
+                              <CheckSquare className="h-4 w-4" />
                             </Button>
                           )}
                           
@@ -754,8 +951,9 @@ export const AdminPage: React.FC = () => {
                               onClick={async () => {
                                 await updateVisitStatus(visit.id, 'in_service');
                               }}
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
                             >
-                              {t('start_service')}
+                              <Play className="h-4 w-4" />
                             </Button>
                           )}
                           
@@ -766,8 +964,9 @@ export const AdminPage: React.FC = () => {
                               onClick={async () => {
                                 await updateVisitStatus(visit.id, 'completed');
                               }}
+                              className="bg-purple-600 hover:bg-purple-700 text-white"
                             >
-                              {t('complete')}
+                              <CheckCircle className="h-4 w-4" />
                             </Button>
                           )}
 
@@ -782,6 +981,7 @@ export const AdminPage: React.FC = () => {
                                 setPaymentAmount((dept?.consultation_fee || 500).toString());
                                 setShowPaymentModal(true);
                               }}
+                              className="hover:bg-green-100"
                             >
                               <CreditCard className="h-4 w-4" />
                             </Button>
@@ -794,9 +994,9 @@ export const AdminPage: React.FC = () => {
                               onClick={async () => {
                                 await updatePaymentStatus(visit.id, 'paid');
                               }}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white"
                             >
                               <CreditCard className="h-4 w-4 mr-1" />
-                              {t('mark_paid')}
                             </Button>
                           )}
                         </div>
@@ -807,9 +1007,10 @@ export const AdminPage: React.FC = () => {
               </table>
 
               {filteredVisits.length === 0 && (
-                <div className="text-center py-12">
+                <div className="text-center py-16 bg-gray-50 rounded-lg">
                   <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">{t('no_visits_found')}</p>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No visits found</h3>
+                  <p className="text-gray-500">Try adjusting your filters or check back later.</p>
                 </div>
               )}
             </div>
@@ -841,6 +1042,26 @@ export const AdminPage: React.FC = () => {
       <SettingsPanel
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
+      />
+
+      {/* Appointment Booking */}
+      <AppointmentBooking
+        isOpen={showAppointments}
+        onClose={() => setShowAppointments(false)}
+      />
+
+      {/* Advanced Analytics */}
+      <AdvancedAnalytics
+        isOpen={showAnalytics}
+        onClose={() => setShowAnalytics(false)}
+      />
+
+      {/* Notification Center */}
+      <NotificationCenter
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        notifications={notifications}
+        onMarkAsRead={(id) => markNotificationAsRead(id)}
       />
 
       {/* Visit Details Modal */}
