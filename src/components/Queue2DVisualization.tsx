@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Clock, Users, TrendingUp, Activity, Zap, Star, Award } from 'lucide-react';
+import { Clock, Users, TrendingUp, Activity, Star, Award, Stethoscope } from 'lucide-react';
 import { DepartmentStats } from '../types';
 import { Card, CardContent, CardHeader } from './ui/Card';
 
@@ -53,7 +53,7 @@ export const Queue2DVisualization: React.FC<Queue2DVisualizationProps> = ({
     if (dept.total_waiting === 0) {
       return { message: "No Queue - Walk In!", color: "text-green-600", bg: "bg-green-50" };
     } else if (dept.total_waiting <= 3) {
-      return { message: "Short Queue - Quick Service", color: "text-blue-600", bg: "bg-blue-50" };
+      return { message: "Short Queue - Quick Service", color: "text-teal-600", bg: "bg-teal-50" };
     } else if (dept.total_waiting <= 8) {
       return { message: "Moderate Queue - Book Now", color: "text-yellow-600", bg: "bg-yellow-50" };
     } else {
@@ -61,77 +61,9 @@ export const Queue2DVisualization: React.FC<Queue2DVisualizationProps> = ({
     }
   };
 
-  const totalWaiting = departmentStats.reduce((sum, dept) => sum + dept.total_waiting, 0);
-  const totalCompleted = departmentStats.reduce((sum, dept) => sum + dept.total_completed, 0);
-  const avgWaitTime = departmentStats.length > 0 ? 
-    departmentStats.reduce((sum, dept) => sum + dept.average_wait_time, 0) / departmentStats.length : 0;
-
   return (
     <div className={`space-y-8 ${className}`}>
-      {/* Enhanced Overall Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-100 text-sm font-medium">Total Waiting</p>
-                <p className="text-3xl font-bold">{totalWaiting}</p>
-                <p className="text-blue-100 text-xs mt-1">Across all departments</p>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-full p-3">
-                <Users className="h-8 w-8" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-100 text-sm font-medium">Completed Today</p>
-                <p className="text-3xl font-bold">{totalCompleted}</p>
-                <p className="text-green-100 text-xs mt-1">Successfully served</p>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-full p-3">
-                <TrendingUp className="h-8 w-8" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-purple-100 text-sm font-medium">Active Departments</p>
-                <p className="text-3xl font-bold">{departmentStats.length}</p>
-                <p className="text-purple-100 text-xs mt-1">Currently serving</p>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-full p-3">
-                <Activity className="h-8 w-8" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-orange-100 text-sm font-medium">Avg Wait Time</p>
-                <p className="text-3xl font-bold">{Math.round(avgWaitTime)}m</p>
-                <p className="text-orange-100 text-xs mt-1">Estimated duration</p>
-              </div>
-              <div className="bg-white bg-opacity-20 rounded-full p-3">
-                <Clock className="h-8 w-8" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Enhanced Department Queue Visualization */}
+      {/* Department Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {departmentStats.map((dept, index) => {
           const queueEmojis = getQueueEmojis(dept.total_waiting);
@@ -142,19 +74,19 @@ export const Queue2DVisualization: React.FC<Queue2DVisualizationProps> = ({
           return (
             <Card 
               key={dept.department} 
-              className={`transition-all duration-500 cursor-pointer hover:shadow-xl transform hover:-translate-y-1 ${
-                isActive ? 'ring-2 ring-blue-200 shadow-lg' : ''
-              } ${isSelected ? 'ring-4 ring-blue-400 shadow-2xl scale-105' : ''}`}
+              className={`transition-all duration-500 cursor-pointer hover:shadow-lg transform hover:-translate-y-1 border border-gray-200 ${
+                isActive ? 'ring-2 ring-teal-200 shadow-md' : ''
+              } ${isSelected ? 'ring-4 ring-teal-400 shadow-xl scale-105' : ''}`}
               onClick={() => setSelectedDept(isSelected ? null : dept.department)}
             >
-              <CardHeader className="pb-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-t-lg">
+              <CardHeader className="pb-3 bg-gray-50 rounded-t-lg border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div className="text-3xl">{getDepartmentIcon(dept.department)}</div>
                     <div>
-                      <h3 className="font-bold text-gray-900 text-lg">{dept.display_name}</h3>
+                      <h4 className="font-bold text-gray-900 text-lg">{dept.display_name}</h4>
                       <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${status.bg} ${status.color}`}>
-                        <Zap className="h-3 w-3 mr-1" />
+                        <Activity className="h-3 w-3 mr-1" />
                         {status.message}
                       </div>
                     </div>
@@ -169,24 +101,24 @@ export const Queue2DVisualization: React.FC<Queue2DVisualizationProps> = ({
               </CardHeader>
               
               <CardContent className="space-y-4">
-                {/* Enhanced Current Status */}
+                {/* Current Status */}
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 text-center border border-blue-200">
-                    <div className="text-xl font-bold text-blue-700">{dept.now_serving}</div>
-                    <div className="text-xs text-blue-600 font-medium">Now Serving</div>
+                  <div className="bg-teal-50 rounded-lg p-3 text-center border border-teal-200">
+                    <div className="text-xl font-bold text-teal-700">{dept.now_serving}</div>
+                    <div className="text-xs text-teal-600 font-medium">Now Serving</div>
                   </div>
-                  <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-3 text-center border border-orange-200">
+                  <div className="bg-orange-50 rounded-lg p-3 text-center border border-orange-200">
                     <div className="text-xl font-bold text-orange-700">{dept.total_waiting}</div>
                     <div className="text-xs text-orange-600 font-medium">Waiting</div>
                   </div>
-                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-3 text-center border border-green-200">
+                  <div className="bg-green-50 rounded-lg p-3 text-center border border-green-200">
                     <div className="text-xl font-bold text-green-700">{dept.total_completed}</div>
                     <div className="text-xs text-green-600 font-medium">Done</div>
                   </div>
                 </div>
 
-                {/* Enhanced Queue Visualization */}
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 min-h-[140px] border border-gray-200">
+                {/* Queue Visualization */}
+                <div className="bg-gray-50 rounded-lg p-4 min-h-[140px] border border-gray-200">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-semibold text-gray-700 flex items-center">
                       <Users className="h-4 w-4 mr-1" />
@@ -207,7 +139,7 @@ export const Queue2DVisualization: React.FC<Queue2DVisualizationProps> = ({
                   ) : (
                     <div className="space-y-3">
                       {/* Current Patient */}
-                      <div className="flex items-center space-x-2 p-2 bg-gradient-to-r from-green-100 to-green-200 rounded-lg border-l-4 border-green-500 shadow-sm">
+                      <div className="flex items-center space-x-2 p-2 bg-green-50 rounded-lg border-l-4 border-green-500">
                         <span className="text-2xl">🏥</span>
                         <div className="flex-1">
                           <span className="text-sm font-semibold text-green-800">
@@ -221,7 +153,7 @@ export const Queue2DVisualization: React.FC<Queue2DVisualizationProps> = ({
                       </div>
                       
                       {/* Waiting Queue */}
-                      <div className="p-3 bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-lg border-l-4 border-yellow-500 shadow-sm">
+                      <div className="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-semibold text-yellow-800">Waiting Queue:</span>
                           <span className="text-xs text-yellow-600 bg-yellow-200 px-2 py-1 rounded-full">
@@ -253,16 +185,16 @@ export const Queue2DVisualization: React.FC<Queue2DVisualizationProps> = ({
                   )}
                 </div>
 
-                {/* Enhanced Department Stats */}
+                {/* Department Stats */}
                 <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="flex items-center justify-between bg-white p-2 rounded border">
+                  <div className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
                     <span className="text-gray-600">Doctors:</span>
-                    <span className="font-semibold text-blue-600 flex items-center">
-                      <Star className="h-3 w-3 mr-1" />
+                    <span className="font-semibold text-teal-600 flex items-center">
+                      <Stethoscope className="h-3 w-3 mr-1" />
                       {dept.doctor_count}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between bg-white p-2 rounded border">
+                  <div className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
                     <span className="text-gray-600">Efficiency:</span>
                     <span className="font-semibold text-green-600 flex items-center">
                       <Award className="h-3 w-3 mr-1" />
@@ -271,10 +203,10 @@ export const Queue2DVisualization: React.FC<Queue2DVisualizationProps> = ({
                   </div>
                 </div>
 
-                {/* Enhanced Progress Bar */}
+                {/* Progress Bar */}
                 <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                   <div
-                    className="h-3 rounded-full transition-all duration-1000 bg-gradient-to-r from-blue-400 to-purple-500"
+                    className="h-3 rounded-full transition-all duration-1000 bg-gradient-to-r from-teal-400 to-green-500"
                     style={{
                       width: `${Math.min(100, (dept.total_completed / Math.max(1, dept.total_completed + dept.total_waiting)) * 100)}%`
                     }}
@@ -295,8 +227,8 @@ export const Queue2DVisualization: React.FC<Queue2DVisualizationProps> = ({
               Departments will appear here once they're configured in the admin settings. 
               Contact your administrator to set up departments.
             </p>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-sm mx-auto">
-              <p className="text-blue-800 text-sm">
+            <div className="bg-teal-50 border border-teal-200 rounded-lg p-4 max-w-sm mx-auto">
+              <p className="text-teal-800 text-sm">
                 💡 <strong>Admin Tip:</strong> Go to Admin → Settings → Departments to add your first department.
               </p>
             </div>
@@ -304,24 +236,24 @@ export const Queue2DVisualization: React.FC<Queue2DVisualizationProps> = ({
         </Card>
       )}
 
-      {/* Enhanced Legend */}
-      <Card className="bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200">
+      {/* Legend */}
+      <Card className="bg-gray-50 border border-gray-200">
         <CardContent className="pt-6">
           <h4 className="font-bold text-gray-900 mb-4 text-center text-lg">Queue Status Legend</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="flex items-center space-x-3 bg-white p-3 rounded-lg shadow-sm">
+            <div className="flex items-center space-x-3 bg-white p-3 rounded-lg shadow-sm border border-gray-200">
               <div className="w-4 h-4 bg-green-500 rounded-full animate-pulse"></div>
               <span className="text-sm font-medium">Currently Serving</span>
             </div>
-            <div className="flex items-center space-x-3 bg-white p-3 rounded-lg shadow-sm">
+            <div className="flex items-center space-x-3 bg-white p-3 rounded-lg shadow-sm border border-gray-200">
               <div className="w-4 h-4 bg-yellow-500 rounded-full"></div>
               <span className="text-sm font-medium">Waiting in Queue</span>
             </div>
-            <div className="flex items-center space-x-3 bg-white p-3 rounded-lg shadow-sm">
-              <div className="w-4 h-4 bg-blue-500 rounded-full animate-pulse"></div>
+            <div className="flex items-center space-x-3 bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+              <div className="w-4 h-4 bg-teal-500 rounded-full animate-pulse"></div>
               <span className="text-sm font-medium">Active Department</span>
             </div>
-            <div className="flex items-center space-x-3 bg-white p-3 rounded-lg shadow-sm">
+            <div className="flex items-center space-x-3 bg-white p-3 rounded-lg shadow-sm border border-gray-200">
               <span className="text-xl">👨‍⚕️👩‍⚕️</span>
               <span className="text-sm font-medium">Patients in Queue</span>
             </div>

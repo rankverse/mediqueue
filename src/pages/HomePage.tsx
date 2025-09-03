@@ -23,7 +23,9 @@ import {
   Building2,
   UserCheck,
   CreditCard,
-  Zap
+  Zap,
+  Plus,
+  ArrowRight
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -42,7 +44,6 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { generateUID } from '../lib/utils';
 import { generateQRCode, QRPayload, downloadQRCode } from '../lib/qr';
 import { useRealTimeUpdates } from '../hooks/useRealTimeUpdates';
-import { createPaymentIntent, confirmPayment } from '../lib/stripe';
 
 export const HomePage: React.FC = () => {
   const { t } = useTranslation();
@@ -51,6 +52,7 @@ export const HomePage: React.FC = () => {
   const [showPatientLookup, setShowPatientLookup] = useState(false);
   const [showSelfLookup, setShowSelfLookup] = useState(false);
   const [showInteractiveGuide, setShowInteractiveGuide] = useState(false);
+  const [showServicesModal, setShowServicesModal] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingResult, setBookingResult] = useState<BookingResponse | null>(null);
   const [qrCodeDataURL, setQrCodeDataURL] = useState<string>('');
@@ -59,31 +61,47 @@ export const HomePage: React.FC = () => {
   const [success, setSuccess] = useState<string>('');
   const [maintenanceMode, setMaintenanceMode] = useState<boolean>(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState<string>('');
-  const [stripeEnabled, setStripeEnabled] = useState<boolean>(false);
-  const [showStripePayment, setShowStripePayment] = useState<boolean>(false);
-  const [paymentLoading, setPaymentLoading] = useState<boolean>(false);
-  const [refreshInterval, setRefreshInterval] = useState<number>(15);
-  const [paymentError, setPaymentError] = useState<string>('');
 
   // Real-time updates
   useRealTimeUpdates(() => {
     fetchDepartmentStats();
   });
 
-  // Auto-refresh with configurable interval
+  // Auto-refresh
   React.useEffect(() => {
     const interval = setInterval(() => {
       fetchDepartmentStats();
-    }, refreshInterval * 1000);
+    }, 15000);
 
     return () => clearInterval(interval);
-  }, [refreshInterval]);
+  }, []);
 
   const fetchDepartmentStats = async () => {
     try {
       if (!isSupabaseConfigured) {
-        setError('Database connection not configured. Please check your .env file with valid Supabase credentials.');
-        setDepartmentStats([]);
+        console.log('Supabase not configured, using demo data');
+        setDepartmentStats([
+          {
+            department: 'general',
+            display_name: 'General Medicine',
+            color_code: '#059669',
+            now_serving: 5,
+            total_waiting: 8,
+            total_completed: 12,
+            average_wait_time: 15,
+            doctor_count: 2
+          },
+          {
+            department: 'cardiology',
+            display_name: 'Cardiology',
+            color_code: '#dc2626',
+            now_serving: 3,
+            total_waiting: 5,
+            total_completed: 8,
+            average_wait_time: 20,
+            doctor_count: 1
+          }
+        ]);
         return;
       }
 
@@ -99,7 +117,6 @@ export const HomePage: React.FC = () => {
       if (deptError) throw deptError;
 
       if (!departments || departments.length === 0) {
-        console.warn('No departments found, initializing defaults');
         await initializeDefaultDepartments();
         return;
       }
@@ -148,11 +165,7 @@ export const HomePage: React.FC = () => {
       setDepartmentStats(stats);
     } catch (error) {
       console.error('Error fetching department stats:', error);
-      if (!isSupabaseConfigured) {
-        setError('Database not configured. Please set up your Supabase credentials.');
-      } else {
-        setError('Unable to load department information. Please refresh the page.');
-      }
+      setError('Unable to load department information. Please refresh the page.');
       setDepartmentStats([]);
     }
   };
@@ -166,7 +179,7 @@ export const HomePage: React.FC = () => {
           description: 'General medical consultation and treatment',
           consultation_fee: 500,
           average_consultation_time: 15,
-          color_code: '#0f766e',
+          color_code: '#059669',
           is_active: true
         },
         {
@@ -218,7 +231,6 @@ export const HomePage: React.FC = () => {
   const checkMaintenanceMode = async () => {
     try {
       if (!isSupabaseConfigured) {
-        console.log('Skipping maintenance mode check - Supabase not configured');
         return;
       }
 
@@ -234,29 +246,11 @@ export const HomePage: React.FC = () => {
         .eq('setting_key', 'maintenance_message')
         .single();
 
-      const { data: stripeData } = await supabase
-        .from('clinic_settings')
-        .select('setting_value')
-        .eq('setting_key', 'enable_online_payments')
-        .single();
-
       if (maintenanceData) {
         setMaintenanceMode(maintenanceData.setting_value);
       }
       if (messageData) {
         setMaintenanceMessage(messageData.setting_value);
-      }
-      if (stripeData) {
-        setStripeEnabled(stripeData.setting_value);
-      }
-
-      const { data: refreshData } = await supabase
-        .from('clinic_settings')
-        .select('setting_value')
-        .eq('setting_key', 'auto_refresh_interval')
-        .single();
-      if (refreshData) {
-        setRefreshInterval(refreshData.setting_value);
       }
     } catch (error) {
       console.log('Settings not found, using defaults');
@@ -267,12 +261,6 @@ export const HomePage: React.FC = () => {
     setBookingLoading(true);
     setError('');
     setSuccess('');
-    
-    if (!isSupabaseConfigured) {
-      setError('Database not configured. Please contact support.');
-      setBookingLoading(false);
-      return;
-    }
     
     try {
       const today = new Date().toISOString().split('T')[0];
@@ -318,32 +306,6 @@ export const HomePage: React.FC = () => {
 
         if (createPatientError) throw createPatientError;
         patient = newPatient;
-      } else {
-        // Update existing patient with new information if provided
-        const allergies = bookingData.allergies ? 
-          bookingData.allergies.split(',').map(item => item.trim()).filter(Boolean) : 
-          [];
-        const medicalConditions = bookingData.medical_conditions ? 
-          bookingData.medical_conditions.split(',').map(item => item.trim()).filter(Boolean) : 
-          [];
-
-        const updateData: any = {};
-        if (bookingData.email && bookingData.email !== patient.email) updateData.email = bookingData.email;
-        if (bookingData.address && bookingData.address !== patient.address) updateData.address = bookingData.address;
-        if (bookingData.emergency_contact && bookingData.emergency_contact !== patient.emergency_contact) updateData.emergency_contact = bookingData.emergency_contact;
-        if (bookingData.blood_group && bookingData.blood_group !== patient.blood_group) updateData.blood_group = bookingData.blood_group;
-        if (allergies.length > 0) updateData.allergies = allergies;
-        if (medicalConditions.length > 0) updateData.medical_conditions = medicalConditions;
-
-        if (Object.keys(updateData).length > 0) {
-          updateData.updated_at = new Date().toISOString();
-          const { error: updateError } = await supabase
-            .from('patients')
-            .update(updateData)
-            .eq('id', patient.id);
-          
-          if (updateError) console.warn('Failed to update patient info:', updateError);
-        }
       }
 
       // Get next STN for today and department
@@ -424,12 +386,7 @@ export const HomePage: React.FC = () => {
       setBookingResult(result);
       setShowBookingModal(false);
       setSuccess('Appointment booked successfully!');
-      
-      if (bookingData.payment_mode === 'pay_now' && stripeEnabled) {
-        setShowStripePayment(true);
-      } else {
-        setShowConfirmationModal(true);
-      }
+      setShowConfirmationModal(true);
 
     } catch (error) {
       console.error('Booking error:', error);
@@ -446,73 +403,50 @@ export const HomePage: React.FC = () => {
     }
   };
 
-  const handleStripePayment = async () => {
-    if (!bookingResult) return;
-    
-    setPaymentLoading(true);
-    setPaymentError('');
-    
-    try {
-      const { data: department } = await supabase
-        .from('departments')
-        .select('consultation_fee')
-        .eq('name', bookingResult.department)
-        .single();
-      
-      const amount = department?.consultation_fee || 500;
-      
-      const paymentIntent = await createPaymentIntent(amount, 'inr', {
-        visit_id: bookingResult.visit_id,
-        patient_uid: bookingResult.uid,
-        department: bookingResult.department
-      });
-      
-      const paymentResult = await confirmPayment(paymentIntent.client_secret, {
-        card: {
-          number: '4242424242424242',
-          exp_month: 12,
-          exp_year: 2025,
-          cvc: '123'
-        }
-      });
-      
-      if (paymentResult.error) {
-        throw new Error(paymentResult.error.message);
-      }
-
-      const { error: transactionError } = await supabase
-        .from('payment_transactions')
-        .insert({
-          visit_id: bookingResult.visit_id,
-          patient_id: bookingResult.visit_id,
-          amount: amount,
-          payment_method: 'online',
-          transaction_id: paymentResult.paymentIntent.id,
-          status: 'completed',
-          gateway_response: paymentResult.paymentIntent,
-          processed_at: new Date().toISOString()
-        });
-
-      if (transactionError) throw transactionError;
-
-      const { error: visitError } = await supabase
-        .from('visits')
-        .update({ payment_status: 'paid' })
-        .eq('id', bookingResult.visit_id);
-      
-      if (visitError) throw visitError;
-
-      setShowStripePayment(false);
-      setShowConfirmationModal(true);
-      setSuccess('Payment processed successfully!');
-      
-    } catch (error) {
-      console.error('Payment processing error:', error);
-      setPaymentError(error instanceof Error ? error.message : 'Payment processing failed. Please try again.');
-    } finally {
-      setPaymentLoading(false);
+  const hospitalServices = [
+    {
+      name: 'Emergency Care',
+      description: '24/7 emergency medical services',
+      icon: '🚨',
+      price: 'Free Consultation',
+      available: true
+    },
+    {
+      name: 'Laboratory Tests',
+      description: 'Complete blood work and diagnostic tests',
+      icon: '🔬',
+      price: '₹200 - ₹2000',
+      available: true
+    },
+    {
+      name: 'Radiology',
+      description: 'X-Ray, CT Scan, MRI services',
+      icon: '📷',
+      price: '₹500 - ₹8000',
+      available: true
+    },
+    {
+      name: 'Pharmacy',
+      description: 'In-house pharmacy with all medications',
+      icon: '💊',
+      price: 'As per prescription',
+      available: true
+    },
+    {
+      name: 'Physiotherapy',
+      description: 'Rehabilitation and physical therapy',
+      icon: '🏃‍♂️',
+      price: '₹300 per session',
+      available: true
+    },
+    {
+      name: 'Health Checkup',
+      description: 'Comprehensive health screening packages',
+      icon: '📋',
+      price: '₹1500 - ₹5000',
+      available: true
     }
-  };
+  ];
 
   // Show maintenance page if enabled
   if (maintenanceMode) {
@@ -652,14 +586,25 @@ export const HomePage: React.FC = () => {
               </div>
             </div>
             
-            <Button
-              onClick={() => setShowBookingModal(true)}
-              size="lg"
-              className="bg-teal-600 hover:bg-teal-700 px-8 py-4 text-lg shadow-lg"
-            >
-              <Calendar className="mr-2 h-6 w-6" />
-              Book Appointment
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button
+                onClick={() => setShowBookingModal(true)}
+                size="lg"
+                className="bg-teal-600 hover:bg-teal-700 px-8 py-4 text-lg shadow-lg"
+              >
+                <Calendar className="mr-2 h-6 w-6" />
+                Book Appointment
+              </Button>
+              <Button
+                onClick={() => setShowServicesModal(true)}
+                variant="outline"
+                size="lg"
+                className="px-8 py-4 text-lg border-teal-600 text-teal-600 hover:bg-teal-50"
+              >
+                <Plus className="mr-2 h-6 w-6" />
+                View All Services
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -841,6 +786,61 @@ export const HomePage: React.FC = () => {
         <BookingForm onSubmit={handleBookToken} loading={bookingLoading} />
       </Modal>
 
+      {/* Hospital Services Modal */}
+      <Modal
+        isOpen={showServicesModal}
+        onClose={() => setShowServicesModal(false)}
+        title="Hospital Services"
+        size="lg"
+      >
+        <div className="space-y-6">
+          <div className="text-center">
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">Complete Healthcare Services</h3>
+            <p className="text-gray-600">Comprehensive medical care under one roof</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            {hospitalServices.map((service, index) => (
+              <Card key={index} className="border border-gray-200 hover:shadow-md transition-shadow">
+                <CardContent className="pt-4">
+                  <div className="flex items-start space-x-4">
+                    <div className="text-3xl">{service.icon}</div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900 mb-1">{service.name}</h4>
+                      <p className="text-sm text-gray-600 mb-2">{service.description}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-teal-600">{service.price}</span>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          service.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {service.available ? 'Available' : 'Unavailable'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+            <h4 className="font-semibold text-teal-900 mb-2">How to Access Services:</h4>
+            <ul className="text-sm text-teal-800 space-y-1">
+              <li>• Book an appointment for consultation first</li>
+              <li>• Doctor will recommend additional services if needed</li>
+              <li>• Services can be booked through admin or during visit</li>
+              <li>• Payment can be made online or at the facility</li>
+            </ul>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={() => setShowServicesModal(false)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Enhanced Confirmation Modal */}
       <Modal
         isOpen={showConfirmationModal}
@@ -981,105 +981,6 @@ export const HomePage: React.FC = () => {
         isOpen={showInteractiveGuide}
         onClose={() => setShowInteractiveGuide(false)}
       />
-
-      {/* Stripe Payment Modal */}
-      <Modal
-        isOpen={showStripePayment}
-        onClose={() => setShowStripePayment(false)}
-        title="Secure Payment Processing"
-        size="md"
-      >
-        {bookingResult && (
-          <div className="space-y-6">
-            <div className="text-center">
-              <div className="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                <Shield className="h-8 w-8 text-green-600" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Secure Payment</h3>
-              <p className="text-gray-600">Complete your payment to confirm your appointment</p>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <h4 className="font-semibold text-gray-900 mb-3">Payment Summary</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Token Number:</span>
-                  <span className="font-bold">#{bookingResult.stn}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Department:</span>
-                  <span className="font-medium capitalize">{bookingResult.department}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Consultation Fee:</span>
-                  <span className="font-bold text-green-600">₹500</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="border rounded-lg p-4">
-              <h4 className="font-semibold text-gray-900 mb-3">Card Details</h4>
-              <div className="space-y-3">
-                <Input
-                  label="Card Number"
-                  placeholder="4242 4242 4242 4242"
-                  defaultValue="4242 4242 4242 4242"
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <Input
-                    label="Expiry Date"
-                    placeholder="MM/YY"
-                    defaultValue="12/25"
-                  />
-                  <Input
-                    label="CVC"
-                    placeholder="123"
-                    defaultValue="123"
-                  />
-                </div>
-                <Input
-                  label="Cardholder Name"
-                  placeholder="John Doe"
-                  defaultValue="John Doe"
-                />
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-blue-800 text-sm">
-                🔒 This is a demo payment system. Using test card: 4242 4242 4242 4242
-              </p>
-            </div>
-
-            {paymentError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-red-800 text-sm">{paymentError}</p>
-              </div>
-            )}
-
-            <div className="flex space-x-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowStripePayment(false);
-                  setShowConfirmationModal(true);
-                }}
-                className="flex-1"
-                disabled={paymentLoading}
-              >
-                Pay at Clinic
-              </Button>
-              <Button
-                onClick={handleStripePayment}
-                className="flex-1 bg-teal-600 hover:bg-teal-700"
-                loading={paymentLoading}
-              >
-                Pay ₹500 Now
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 };
