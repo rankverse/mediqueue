@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Heart, Clock, Users, Calendar, QrCode, CheckCircle, Search, Play, Info, Sparkles, Activity } from 'lucide-react';
+import { Heart, Clock, Users, Calendar, QrCode, CheckCircle, Search, Play, Info, Stethoscope, Shield, Award, FileText, Download } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
@@ -10,6 +10,7 @@ import { QueueWidget } from '../components/QueueWidget';
 import { Queue2DVisualization } from '../components/Queue2DVisualization';
 import { BookingForm } from '../components/BookingForm';
 import { PatientLookup } from '../components/PatientLookup';
+import { PatientSelfLookup } from '../components/PatientSelfLookup';
 import { useTranslation } from '../lib/translations';
 import { BookingRequest, BookingResponse, DepartmentStats } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -23,12 +24,14 @@ export const HomePage: React.FC = () => {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [showPatientLookup, setShowPatientLookup] = useState(false);
+  const [showSelfLookup, setShowSelfLookup] = useState(false);
   const [showInteractiveGuide, setShowInteractiveGuide] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingResult, setBookingResult] = useState<BookingResponse | null>(null);
   const [qrCodeDataURL, setQrCodeDataURL] = useState<string>('');
   const [departmentStats, setDepartmentStats] = useState<DepartmentStats[]>([]);
   const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
   const [maintenanceMode, setMaintenanceMode] = useState<boolean>(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState<string>('');
   const [stripeEnabled, setStripeEnabled] = useState<boolean>(false);
@@ -53,7 +56,6 @@ export const HomePage: React.FC = () => {
 
   const fetchDepartmentStats = async () => {
     try {
-      // Check if Supabase is properly configured
       if (!isSupabaseConfigured) {
         setError('Database connection not configured. Please check your .env file with valid Supabase credentials.');
         setDepartmentStats([]);
@@ -64,24 +66,22 @@ export const HomePage: React.FC = () => {
       
       const today = new Date().toISOString().split('T')[0];
       
-      const { data: departments } = await supabase
+      const { data: departments, error: deptError } = await supabase
         .from('departments')
         .select('*')
         .eq('is_active', true);
 
-      if (departments === null) {
-        throw new Error('Failed to fetch departments from database');
-      }
+      if (deptError) throw deptError;
 
-      if (departments.length === 0) {
-        console.warn('No departments found, using default message');
-        setDepartmentStats([]);
+      if (!departments || departments.length === 0) {
+        console.warn('No departments found, initializing defaults');
+        await initializeDefaultDepartments();
         return;
       }
       
       const { data: visits } = await supabase
         .from('visits')
-        .select('department, status')
+        .select('department, status, stn')
         .eq('visit_date', today);
 
       const { data: doctors } = await supabase
@@ -89,7 +89,7 @@ export const HomePage: React.FC = () => {
         .select('specialization')
         .eq('status', 'active');
 
-      const stats: DepartmentStats[] = (departments || []).map(dept => {
+      const stats: DepartmentStats[] = departments.map(dept => {
         const deptVisits = visits?.filter(v => v.department === dept.name) || [];
         const waitingVisits = deptVisits.filter(v => ['waiting', 'checked_in'].includes(v.status));
         const completedVisits = deptVisits.filter(v => v.status === 'completed');
@@ -123,14 +123,65 @@ export const HomePage: React.FC = () => {
       setDepartmentStats(stats);
     } catch (error) {
       console.error('Error fetching department stats:', error);
-
       if (!isSupabaseConfigured) {
-        setError('Database not configured. Please set up your Supabase credentials in the .env file.');
+        setError('Database not configured. Please set up your Supabase credentials.');
       } else {
-        setError('Unable to load department information. Please check your database connection and try refreshing the page.');
+        setError('Unable to load department information. Please refresh the page.');
       }
-      
       setDepartmentStats([]);
+    }
+  };
+
+  const initializeDefaultDepartments = async () => {
+    try {
+      const defaultDepartments = [
+        {
+          name: 'general',
+          display_name: 'General Medicine',
+          description: 'General medical consultation and treatment',
+          consultation_fee: 500,
+          average_consultation_time: 15,
+          color_code: '#059669',
+          is_active: true
+        },
+        {
+          name: 'cardiology',
+          display_name: 'Cardiology',
+          description: 'Heart and cardiovascular system treatment',
+          consultation_fee: 800,
+          average_consultation_time: 20,
+          color_code: '#DC2626',
+          is_active: true
+        },
+        {
+          name: 'orthopedics',
+          display_name: 'Orthopedics',
+          description: 'Bone, joint, and muscle treatment',
+          consultation_fee: 700,
+          average_consultation_time: 18,
+          color_code: '#7C3AED',
+          is_active: true
+        },
+        {
+          name: 'pediatrics',
+          display_name: 'Pediatrics',
+          description: 'Child healthcare and treatment',
+          consultation_fee: 600,
+          average_consultation_time: 20,
+          color_code: '#EA580C',
+          is_active: true
+        }
+      ];
+
+      const { error } = await supabase
+        .from('departments')
+        .insert(defaultDepartments);
+      
+      if (error) throw error;
+      
+      await fetchDepartmentStats();
+    } catch (error) {
+      console.error('Error initializing departments:', error);
     }
   };
 
@@ -141,7 +192,6 @@ export const HomePage: React.FC = () => {
 
   const checkMaintenanceMode = async () => {
     try {
-      // Skip if Supabase is not configured
       if (!isSupabaseConfigured) {
         console.log('Skipping maintenance mode check - Supabase not configured');
         return;
@@ -175,21 +225,23 @@ export const HomePage: React.FC = () => {
         setStripeEnabled(stripeData.setting_value);
       }
 
-      // Get refresh interval
       const { data: refreshData } = await supabase
         .from('clinic_settings')
         .select('setting_value')
-        .eq('setting_key', 'auto_refresh_interval');
-      if (refreshData && refreshData.length > 0) {
-        setRefreshInterval(refreshData[0].setting_value);
+        .eq('setting_key', 'auto_refresh_interval')
+        .single();
+      if (refreshData) {
+        setRefreshInterval(refreshData.setting_value);
       }
     } catch (error) {
       console.log('Settings not found, using defaults');
     }
   };
+
   const handleBookToken = async (bookingData: BookingRequest) => {
     setBookingLoading(true);
     setError('');
+    setSuccess('');
     
     if (!isSupabaseConfigured) {
       setError('Database not configured. Please contact support.');
@@ -215,7 +267,6 @@ export const HomePage: React.FC = () => {
       if (!patient) {
         const uid = generateUID();
         
-        // Process allergies and medical conditions
         const allergies = bookingData.allergies ? 
           bookingData.allergies.split(',').map(item => item.trim()).filter(Boolean) : 
           [];
@@ -230,10 +281,10 @@ export const HomePage: React.FC = () => {
             name: bookingData.name,
             age: bookingData.age,
             phone: bookingData.phone,
-            email: bookingData.email,
-            address: bookingData.address,
-            emergency_contact: bookingData.emergency_contact,
-            blood_group: bookingData.blood_group,
+            email: bookingData.email || null,
+            address: bookingData.address || null,
+            emergency_contact: bookingData.emergency_contact || null,
+            blood_group: bookingData.blood_group || null,
             allergies: allergies.length > 0 ? allergies : null,
             medical_conditions: medicalConditions.length > 0 ? medicalConditions : null,
           })
@@ -260,6 +311,7 @@ export const HomePage: React.FC = () => {
         if (medicalConditions.length > 0) updateData.medical_conditions = medicalConditions;
 
         if (Object.keys(updateData).length > 0) {
+          updateData.updated_at = new Date().toISOString();
           const { error: updateError } = await supabase
             .from('patients')
             .update(updateData)
@@ -329,7 +381,7 @@ export const HomePage: React.FC = () => {
       }
 
       const position = Math.max(0, nextSTN - nowServing);
-      const estimatedWaitMinutes = position * 10; // Assume 10 minutes per patient
+      const estimatedWaitMinutes = position * 10;
 
       const result: BookingResponse = {
         uid: patient.uid,
@@ -346,6 +398,7 @@ export const HomePage: React.FC = () => {
 
       setBookingResult(result);
       setShowBookingModal(false);
+      setSuccess('Appointment booked successfully!');
       
       if (bookingData.payment_mode === 'pay_now' && stripeEnabled) {
         setShowStripePayment(true);
@@ -355,7 +408,7 @@ export const HomePage: React.FC = () => {
 
     } catch (error) {
       console.error('Booking error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to book token. Please try again.';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to book appointment. Please try again.';
       setError(errorMessage);
     } finally {
       setBookingLoading(false);
@@ -375,7 +428,6 @@ export const HomePage: React.FC = () => {
     setPaymentError('');
     
     try {
-      // Get department fee
       const { data: department } = await supabase
         .from('departments')
         .select('consultation_fee')
@@ -384,14 +436,12 @@ export const HomePage: React.FC = () => {
       
       const amount = department?.consultation_fee || 500;
       
-      // Create payment intent
       const paymentIntent = await createPaymentIntent(amount, 'inr', {
         visit_id: bookingResult.visit_id,
         patient_uid: bookingResult.uid,
         department: bookingResult.department
       });
       
-      // For demo purposes, simulate successful payment
       const paymentResult = await confirmPayment(paymentIntent.client_secret, {
         card: {
           number: '4242424242424242',
@@ -405,12 +455,11 @@ export const HomePage: React.FC = () => {
         throw new Error(paymentResult.error.message);
       }
 
-      // Create payment transaction
       const { error: transactionError } = await supabase
         .from('payment_transactions')
         .insert({
           visit_id: bookingResult.visit_id,
-          patient_id: bookingResult.visit_id, // Note: This should ideally be patient_id
+          patient_id: bookingResult.visit_id,
           amount: amount,
           payment_method: 'online',
           transaction_id: paymentResult.paymentIntent.id,
@@ -421,7 +470,6 @@ export const HomePage: React.FC = () => {
 
       if (transactionError) throw transactionError;
 
-      // Update visit payment status
       const { error: visitError } = await supabase
         .from('visits')
         .update({ payment_status: 'paid' })
@@ -431,6 +479,7 @@ export const HomePage: React.FC = () => {
 
       setShowStripePayment(false);
       setShowConfirmationModal(true);
+      setSuccess('Payment processed successfully!');
       
     } catch (error) {
       console.error('Payment processing error:', error);
@@ -461,174 +510,184 @@ export const HomePage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50" dir={t('dir')}>
-      {/* Header */}
+    <div className="min-h-screen bg-gray-50" dir={t('dir')}>
+      {/* Medical Professional Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <Heart className="h-8 w-8 text-blue-600 mr-3" />
-              <h1 className="text-2xl font-bold text-gray-900">{t('clinic_name')}</h1>
+              <div className="bg-teal-600 rounded-lg p-2 mr-3">
+                <Heart className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">{t('clinic_name')}</h1>
+                <p className="text-xs text-gray-600">Professional Healthcare Services</p>
+              </div>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <LanguageSwitcher />
-              <Button variant="outline" onClick={() => setShowInteractiveGuide(true)}>
+              <Button variant="outline" onClick={() => setShowInteractiveGuide(true)} size="sm">
                 <Play className="h-4 w-4 mr-2" />
-                How it Works
+                Guide
               </Button>
-              <Button variant="outline" onClick={() => setShowPatientLookup(true)}>
+              <Button variant="outline" onClick={() => setShowSelfLookup(true)} size="sm">
                 <Search className="h-4 w-4 mr-2" />
-                {t('track_by_uid')}
+                Track by UID
+              </Button>
+              <Button variant="outline" onClick={() => setShowPatientLookup(true)} size="sm">
+                <FileText className="h-4 w-4 mr-2" />
+                Medical Records
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Status Messages */}
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-r-lg">
             <div className="flex items-center">
-              <div className="text-red-500 mr-3">⚠️</div>
+              <div className="text-red-400 mr-3">⚠️</div>
               <div>
                 <h3 className="text-red-800 font-medium">System Notice</h3>
                 <p className="text-red-700 text-sm mt-1">{error}</p>
-                {error.includes('Supabase') && (
-                  <div className="mt-3 text-sm text-red-600">
-                    <p className="font-medium">To fix this issue:</p>
-                    <ol className="list-decimal list-inside mt-1 space-y-1">
-                      <li>Create a <code className="bg-red-100 px-1 rounded">.env</code> file in your project root (copy from .env.example)</li>
-                      <li>Copy the contents from <code className="bg-red-100 px-1 rounded">.env.example</code></li>
-                      <li>Replace placeholder values with your actual Supabase credentials</li>
-                      <li>Restart the development server</li>
-                    </ol>
-                  </div>
-                )}
               </div>
-              <div className="mt-4">
-                <Button 
-                  onClick={() => window.location.reload()} 
-                  variant="outline"
-                  size="sm"
-                >
-                  Retry Connection
-                </Button>
-                <Button 
-                  onClick={() => setError('')} 
-                  variant="ghost"
-                  size="sm"
-                  className="ml-2"
-                >
-                  Dismiss
-                </Button>
+              <Button 
+                onClick={() => setError('')} 
+                variant="ghost"
+                size="sm"
+                className="ml-auto"
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-6 bg-green-50 border-l-4 border-green-400 p-4 rounded-r-lg">
+            <div className="flex items-center">
+              <div className="text-green-400 mr-3">✅</div>
+              <div>
+                <h3 className="text-green-800 font-medium">Success</h3>
+                <p className="text-green-700 text-sm mt-1">{success}</p>
               </div>
+              <Button 
+                onClick={() => setSuccess('')} 
+                variant="ghost"
+                size="sm"
+                className="ml-auto"
+              >
+                Dismiss
+              </Button>
             </div>
           </div>
         )}
         
-        {/* Interactive Guide Banner */}
-        <div className="mb-8">
-          <Card className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white border-0 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1">
-            <CardContent className="pt-6 pb-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="bg-white bg-opacity-20 rounded-full p-3 animate-pulse">
-                    <Sparkles className="h-8 w-8" />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold mb-2 flex items-center">
-                      🚀 New to MediQueue?
-                    </h3>
-                    <p className="text-blue-100 text-lg">Take our interactive guide to learn how to book and track your appointment in under 2 minutes!</p>
-                    <div className="flex items-center space-x-4 mt-2 text-sm text-blue-200">
-                      <span className="flex items-center">
-                        <Clock className="h-4 w-4 mr-1" />
-                        2 min guide
-                      </span>
-                      <span className="flex items-center">
-                        <Users className="h-4 w-4 mr-1" />
-                        5 easy steps
-                      </span>
-                      <span className="flex items-center">
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        Get started fast
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <Button
-                  onClick={() => setShowInteractiveGuide(true)}
-                  className="bg-white text-blue-600 hover:bg-blue-50 font-semibold px-8 py-4 text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                >
-                  <Play className="h-5 w-5 mr-2" />
-                  Start Interactive Guide
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        
+        {/* Professional Hero Section */}
         <div className="text-center mb-12">
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-            {t('skip_wait_book_token')}
-          </h2>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            {t('get_appointment_instantly')}
-          </p>
-          
-          <Button
-            onClick={() => setShowBookingModal(true)}
-            size="lg"
-            className="mb-8 px-8 py-4 text-lg"
-          >
-            <Calendar className="mr-2 h-6 w-6" />
-            {t('book_token_now')}
-          </Button>
+          <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
+            <div className="flex items-center justify-center mb-6">
+              <div className="bg-teal-100 rounded-full p-4 mr-4">
+                <Stethoscope className="h-12 w-12 text-teal-600" />
+              </div>
+              <div className="text-left">
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                  Professional Healthcare Management
+                </h2>
+                <p className="text-lg text-gray-600">
+                  Book appointments, track queues, and manage your healthcare efficiently
+                </p>
+              </div>
+            </div>
+            
+            <div className="grid md:grid-cols-3 gap-6 mb-8">
+              <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
+                <Shield className="h-8 w-8 text-teal-600" />
+                <div>
+                  <h3 className="font-semibold text-gray-900">Secure & Private</h3>
+                  <p className="text-sm text-gray-600">HIPAA compliant data protection</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
+                <Award className="h-8 w-8 text-teal-600" />
+                <div>
+                  <h3 className="font-semibold text-gray-900">Professional Care</h3>
+                  <p className="text-sm text-gray-600">Qualified medical professionals</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
+                <Clock className="h-8 w-8 text-teal-600" />
+                <div>
+                  <h3 className="font-semibold text-gray-900">Time Efficient</h3>
+                  <p className="text-sm text-gray-600">Minimal waiting times</p>
+                </div>
+              </div>
+            </div>
+            
+            <Button
+              onClick={() => setShowBookingModal(true)}
+              size="lg"
+              className="bg-teal-600 hover:bg-teal-700 px-8 py-4 text-lg"
+            >
+              <Calendar className="mr-2 h-6 w-6" />
+              Book Appointment
+            </Button>
+          </div>
         </div>
+
+        {/* Interactive Guide Promotion */}
+        <Card className="mb-8 bg-gradient-to-r from-teal-50 to-cyan-50 border-teal-200">
+          <CardContent className="pt-6 pb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="bg-teal-100 rounded-full p-3">
+                  <Info className="h-8 w-8 text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">
+                    First time using our system?
+                  </h3>
+                  <p className="text-gray-700">Take our 2-minute interactive guide to learn how to book and track appointments</p>
+                </div>
+              </div>
+              <Button
+                onClick={() => setShowInteractiveGuide(true)}
+                className="bg-teal-600 hover:bg-teal-700"
+              >
+                <Play className="h-5 w-5 mr-2" />
+                Start Guide
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Live Queue Widget */}
         <QueueWidget />
 
-        {/* Enhanced 2D Queue Visualization */}
-        <Card className="mb-12 bg-gradient-to-br from-white via-blue-50 to-indigo-50 border-2 border-blue-200 shadow-2xl hover:shadow-3xl transition-all duration-500">
-          <CardHeader>
+        {/* Professional Queue Dashboard */}
+        <Card className="mb-12 bg-white border border-gray-200 shadow-lg">
+          <CardHeader className="bg-gray-50 border-b border-gray-200">
             <div className="text-center space-y-3">
               <div className="flex items-center justify-center space-x-3">
-                <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-full p-3 shadow-lg">
-                  <Activity className="h-6 w-6 text-white" />
+                <div className="bg-teal-600 rounded-full p-3">
+                  <Users className="h-6 w-6 text-white" />
                 </div>
-                <h3 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Live Queue Dashboard
+                <h3 className="text-2xl font-bold text-gray-900">
+                  Department Queue Status
                 </h3>
-                <div className="bg-gradient-to-r from-green-400 to-green-500 rounded-full p-2 animate-pulse shadow-lg">
-                  <div className="w-3 h-3 bg-white rounded-full animate-ping"></div>
+                <div className="bg-green-500 rounded-full p-2">
+                  <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
                 </div>
               </div>
-              <p className="text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
-                🎯 Real-time visualization of all department queues with live patient tracking, smart wait time predictions, and interactive department insights
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                Real-time monitoring of all department queues with live patient tracking and wait time estimates
               </p>
-              <div className="flex flex-wrap items-center justify-center gap-6 text-sm">
-                <div className="flex items-center space-x-2 bg-green-100 px-3 py-2 rounded-full">
-                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-green-700 font-medium">Live Updates</span>
-                </div>
-                <div className="flex items-center space-x-2 bg-blue-100 px-3 py-2 rounded-full">
-                  <Clock className="h-3 w-3" />
-                  <span className="text-blue-700 font-medium">Real-time Tracking</span>
-                </div>
-                <div className="flex items-center space-x-2 bg-purple-100 px-3 py-2 rounded-full">
-                  <Users className="h-3 w-3" />
-                  <span className="text-purple-700 font-medium">Smart Queue Management</span>
-                </div>
-                <div className="flex items-center space-x-2 bg-orange-100 px-3 py-2 rounded-full">
-                  <Activity className="h-3 w-3" />
-                  <span className="text-orange-700 font-medium">Interactive Dashboard</span>
-                </div>
-              </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             <Queue2DVisualization 
               departmentStats={departmentStats}
               className="animate-fadeIn"
@@ -636,105 +695,112 @@ export const HomePage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Features */}
+        {/* Professional Features Grid */}
         <div className="grid md:grid-cols-3 gap-8 mb-12">
-          <Card className="text-center">
-            <CardContent className="pt-6">
-              <Clock className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">{t('real_time_updates')}</h3>
+          <Card className="text-center hover:shadow-lg transition-shadow">
+            <CardContent className="pt-8 pb-8">
+              <div className="bg-teal-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <Clock className="h-8 w-8 text-teal-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Real-Time Tracking</h3>
               <p className="text-gray-600">
-                {t('real_time_desc')}
+                Monitor your queue position and estimated wait time with live updates every 15 seconds
               </p>
             </CardContent>
           </Card>
 
-          <Card className="text-center">
-            <CardContent className="pt-6">
-              <QrCode className="h-12 w-12 text-green-600 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">{t('qr_check_in')}</h3>
+          <Card className="text-center hover:shadow-lg transition-shadow">
+            <CardContent className="pt-8 pb-8">
+              <div className="bg-teal-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <QrCode className="h-8 w-8 text-teal-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Digital Check-in</h3>
               <p className="text-gray-600">
-                {t('qr_check_in_desc')}
+                Contactless check-in with secure QR codes for a safe and efficient experience
               </p>
             </CardContent>
           </Card>
 
-          <Card className="text-center">
-            <CardContent className="pt-6">
-              <Users className="h-12 w-12 text-purple-600 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">{t('multiple_departments')}</h3>
+          <Card className="text-center hover:shadow-lg transition-shadow">
+            <CardContent className="pt-8 pb-8">
+              <div className="bg-teal-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <FileText className="h-8 w-8 text-teal-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Digital Records</h3>
               <p className="text-gray-600">
-                {t('multiple_departments_desc')}
+                Access your complete medical history and download prescriptions anytime
               </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* How it Works */}
+        {/* Professional Process Steps */}
         <Card className="mb-12">
-          <CardHeader>
-            <h3 className="text-2xl font-bold text-center text-gray-900">How It Works</h3>
+          <CardHeader className="bg-gray-50">
+            <h3 className="text-2xl font-bold text-center text-gray-900">How Our System Works</h3>
           </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-4 gap-6 text-center">
+          <CardContent className="p-8">
+            <div className="grid md:grid-cols-4 gap-8 text-center">
               <div className="space-y-4">
-                <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto">
-                  <span className="text-2xl font-bold text-blue-600">1</span>
+                <div className="bg-teal-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto">
+                  <span className="text-2xl font-bold text-teal-600">1</span>
                 </div>
                 <h4 className="font-semibold text-gray-900">Book Online</h4>
-                <p className="text-sm text-gray-600">Fill out the simple form with your details and preferred department.</p>
+                <p className="text-sm text-gray-600">Complete the appointment form with your medical details and preferred department</p>
               </div>
               
               <div className="space-y-4">
-                <div className="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto">
-                  <span className="text-2xl font-bold text-green-600">2</span>
+                <div className="bg-teal-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto">
+                  <span className="text-2xl font-bold text-teal-600">2</span>
                 </div>
-                <h4 className="font-semibold text-gray-900">Get QR Code</h4>
-                <p className="text-sm text-gray-600">Receive your unique QR code and token number instantly.</p>
+                <h4 className="font-semibold text-gray-900">Receive Token</h4>
+                <p className="text-sm text-gray-600">Get your unique appointment token and secure QR code instantly</p>
               </div>
               
               <div className="space-y-4">
-                <div className="bg-purple-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto">
-                  <span className="text-2xl font-bold text-purple-600">3</span>
+                <div className="bg-teal-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto">
+                  <span className="text-2xl font-bold text-teal-600">3</span>
                 </div>
-                <h4 className="font-semibold text-gray-900">Track Queue</h4>
-                <p className="text-sm text-gray-600">Monitor your position and estimated wait time in real-time.</p>
+                <h4 className="font-semibold text-gray-900">Monitor Queue</h4>
+                <p className="text-sm text-gray-600">Track your position and estimated wait time in real-time</p>
               </div>
               
               <div className="space-y-4">
-                <div className="bg-orange-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto">
-                  <span className="text-2xl font-bold text-orange-600">4</span>
+                <div className="bg-teal-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto">
+                  <span className="text-2xl font-bold text-teal-600">4</span>
                 </div>
                 <h4 className="font-semibold text-gray-900">Quick Check-in</h4>
-                <p className="text-sm text-gray-600">Show your QR code at the clinic for instant check-in.</p>
+                <p className="text-sm text-gray-600">Present your QR code for instant, contactless check-in</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </main>
 
-      {/* Credits Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="text-center text-sm text-gray-600">
-            <p>
+      {/* Professional Footer */}
+      <footer className="bg-white border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="text-center">
+            <div className="flex items-center justify-center mb-4">
+              <div className="bg-teal-600 rounded-lg p-2 mr-3">
+                <Heart className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-lg font-semibold text-gray-900">MediQueue</span>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Professional Healthcare Management System
+            </p>
+            <p className="text-xs text-gray-500">
               Developed by{' '}
               <a 
                 href="https://instagram.com/aftabxplained" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="font-medium text-blue-600 hover:text-blue-800"
+                className="font-medium text-teal-600 hover:text-teal-800"
               >
                 Aftab Alam [ASOSE Lajpat Nagar]
               </a>
-              {' '}| Follow on Instagram:{' '}
-              <a 
-                href="https://instagram.com/aftabxplained" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="font-medium text-blue-600 hover:text-blue-800"
-              >
-                @aftabxplained
-              </a>
+              {' '}| Follow: @aftabxplained
             </p>
           </div>
         </div>
@@ -744,39 +810,41 @@ export const HomePage: React.FC = () => {
       <Modal
         isOpen={showBookingModal}
         onClose={() => setShowBookingModal(false)}
-        title={t('book_your_token')}
+        title="Book Your Appointment"
         size="lg"
       >
         <BookingForm onSubmit={handleBookToken} loading={bookingLoading} />
       </Modal>
 
-      {/* Confirmation Modal */}
+      {/* Enhanced Confirmation Modal */}
       <Modal
         isOpen={showConfirmationModal}
         onClose={() => setShowConfirmationModal(false)}
-        title={t('booking_confirmed')}
+        title="Appointment Confirmed"
         size="lg"
       >
         {bookingResult && (
           <div className="space-y-6">
             <div className="text-center">
-              <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">{t('booking_confirmed')}</h3>
-              <p className="text-gray-600">{t('appointment_confirmed')}</p>
+              <div className="bg-green-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="h-12 w-12 text-green-600" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Appointment Confirmed!</h3>
+              <p className="text-gray-600">Your appointment has been successfully booked</p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="font-semibold text-gray-900 mb-3">Booking Details</h4>
+                  <h4 className="font-semibold text-gray-900 mb-3">Appointment Details</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Patient ID:</span>
-                      <span className="font-medium">{bookingResult.uid}</span>
+                      <span className="font-medium font-mono">{bookingResult.uid}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Token Number:</span>
-                      <span className="font-bold text-blue-600 text-lg">{bookingResult.stn}</span>
+                      <span className="font-bold text-teal-600 text-xl">#{bookingResult.stn}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Department:</span>
@@ -787,7 +855,7 @@ export const HomePage: React.FC = () => {
                       <span className="font-medium">{bookingResult.visit_date}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Payment:</span>
+                      <span className="text-gray-600">Payment Status:</span>
                       <span className={`font-medium px-2 py-1 rounded text-xs ${
                         bookingResult.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
                         bookingResult.payment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
@@ -799,20 +867,20 @@ export const HomePage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <h4 className="font-semibold text-blue-900 mb-3">Queue Status</h4>
+                <div className="bg-teal-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-teal-900 mb-3">Queue Information</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-blue-700">Now Serving:</span>
-                      <span className="font-bold text-blue-900">{bookingResult.now_serving}</span>
+                      <span className="text-teal-700">Currently Serving:</span>
+                      <span className="font-bold text-teal-900">#{bookingResult.now_serving}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-blue-700">Your Position:</span>
-                      <span className="font-bold text-blue-900">#{bookingResult.position}</span>
+                      <span className="text-teal-700">Your Position:</span>
+                      <span className="font-bold text-teal-900">#{bookingResult.position}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-blue-700">Est. Wait Time:</span>
-                      <span className="font-bold text-blue-900">{bookingResult.estimated_wait_minutes} min</span>
+                      <span className="text-teal-700">Estimated Wait:</span>
+                      <span className="font-bold text-teal-900">{bookingResult.estimated_wait_minutes} minutes</span>
                     </div>
                   </div>
                 </div>
@@ -822,13 +890,15 @@ export const HomePage: React.FC = () => {
                 <h4 className="font-semibold text-gray-900 mb-3">Your QR Code</h4>
                 {qrCodeDataURL && (
                   <div className="space-y-4">
-                    <img
-                      src={qrCodeDataURL}
-                      alt="QR Code"
-                      className="w-48 h-48 mx-auto border border-gray-200 rounded-lg"
-                    />
+                    <div className="bg-white p-4 rounded-lg border-2 border-gray-200 inline-block">
+                      <img
+                        src={qrCodeDataURL}
+                        alt="Appointment QR Code"
+                        className="w-48 h-48"
+                      />
+                    </div>
                     <Button onClick={handleDownloadQR} variant="outline" className="w-full">
-                      <QrCode className="mr-2 h-4 w-4" />
+                      <Download className="mr-2 h-4 w-4" />
                       Download QR Code
                     </Button>
                   </div>
@@ -836,13 +906,14 @@ export const HomePage: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <h5 className="font-semibold text-yellow-800 mb-2">{t('important_instructions')}</h5>
-              <ul className="text-sm text-yellow-700 space-y-1">
-                <li>• {t('save_qr_code')}</li>
-                <li>• {t('arrive_on_time')}</li>
-                <li>• {t('show_qr_reception')}</li>
-                <li>• {t('track_live_queue')}</li>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h5 className="font-semibold text-blue-800 mb-2">Important Instructions:</h5>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>• Save your QR code to your phone for easy access</li>
+                <li>• Arrive 10 minutes before your estimated time</li>
+                <li>• Present your QR code at reception for check-in</li>
+                <li>• Monitor the live queue status on this page</li>
+                <li>• Keep your phone charged for QR code display</li>
               </ul>
             </div>
 
@@ -854,15 +925,27 @@ export const HomePage: React.FC = () => {
               >
                 Close
               </Button>
-              <Button onClick={() => window.location.reload()} className="flex-1">
-                Track Queue
+              <Button 
+                onClick={() => {
+                  setShowConfirmationModal(false);
+                  setShowSelfLookup(true);
+                }} 
+                className="flex-1 bg-teal-600 hover:bg-teal-700"
+              >
+                Track My Appointment
               </Button>
             </div>
           </div>
         )}
       </Modal>
 
-      {/* Patient Lookup Modal */}
+      {/* Patient Self Lookup Modal */}
+      <PatientSelfLookup
+        isOpen={showSelfLookup}
+        onClose={() => setShowSelfLookup(false)}
+      />
+
+      {/* Admin Patient Lookup Modal */}
       <PatientLookup
         isOpen={showPatientLookup}
         onClose={() => setShowPatientLookup(false)}
@@ -878,19 +961,21 @@ export const HomePage: React.FC = () => {
       <Modal
         isOpen={showStripePayment}
         onClose={() => setShowStripePayment(false)}
-        title="Complete Payment"
+        title="Secure Payment Processing"
         size="md"
       >
         {bookingResult && (
           <div className="space-y-6">
             <div className="text-center">
-              <div className="text-4xl mb-4">💳</div>
+              <div className="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <Shield className="h-8 w-8 text-green-600" />
+              </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Secure Payment</h3>
-              <p className="text-gray-600">Complete your payment to confirm booking</p>
+              <p className="text-gray-600">Complete your payment to confirm your appointment</p>
             </div>
 
             <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="font-semibold text-gray-900 mb-3">Payment Details</h4>
+              <h4 className="font-semibold text-gray-900 mb-3">Payment Summary</h4>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Token Number:</span>
@@ -907,7 +992,6 @@ export const HomePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Dummy Stripe Payment Form */}
             <div className="border rounded-lg p-4">
               <h4 className="font-semibold text-gray-900 mb-3">Card Details</h4>
               <div className="space-y-3">
@@ -938,7 +1022,7 @@ export const HomePage: React.FC = () => {
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <p className="text-blue-800 text-sm">
-                🔒 This is a demo payment. Using test card: 4242 4242 4242 4242
+                🔒 This is a demo payment system. Using test card: 4242 4242 4242 4242
               </p>
             </div>
 
@@ -958,14 +1042,14 @@ export const HomePage: React.FC = () => {
                 className="flex-1"
                 disabled={paymentLoading}
               >
-                Pay Later
+                Pay at Clinic
               </Button>
               <Button
                 onClick={handleStripePayment}
-                className="flex-1"
+                className="flex-1 bg-teal-600 hover:bg-teal-700"
                 loading={paymentLoading}
               >
-                Pay ₹{bookingResult && departmentStats.find(d => d.department === bookingResult.department)?.consultation_fee || 500}
+                Pay ₹500 Now
               </Button>
             </div>
           </div>
