@@ -1,5 +1,30 @@
 import React, { useState } from 'react';
-import { Heart, Clock, Users, Calendar, QrCode, CheckCircle, Search, Play, Info, Stethoscope, Shield, Award, FileText, Download } from 'lucide-react';
+import { 
+  Heart, 
+  Clock, 
+  Users, 
+  Calendar, 
+  QrCode, 
+  CheckCircle, 
+  Search, 
+  Play, 
+  Info, 
+  Stethoscope, 
+  Shield, 
+  Award, 
+  FileText, 
+  Download,
+  Phone,
+  Mail,
+  MapPin,
+  Activity,
+  AlertTriangle,
+  Star,
+  Building2,
+  UserCheck,
+  CreditCard,
+  Zap
+} from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
@@ -141,7 +166,7 @@ export const HomePage: React.FC = () => {
           description: 'General medical consultation and treatment',
           consultation_fee: 500,
           average_consultation_time: 15,
-          color_code: '#059669',
+          color_code: '#0f766e',
           is_active: true
         },
         {
@@ -150,7 +175,7 @@ export const HomePage: React.FC = () => {
           description: 'Heart and cardiovascular system treatment',
           consultation_fee: 800,
           average_consultation_time: 20,
-          color_code: '#DC2626',
+          color_code: '#dc2626',
           is_active: true
         },
         {
@@ -159,7 +184,7 @@ export const HomePage: React.FC = () => {
           description: 'Bone, joint, and muscle treatment',
           consultation_fee: 700,
           average_consultation_time: 18,
-          color_code: '#7C3AED',
+          color_code: '#7c3aed',
           is_active: true
         },
         {
@@ -168,7 +193,7 @@ export const HomePage: React.FC = () => {
           description: 'Child healthcare and treatment',
           consultation_fee: 600,
           average_consultation_time: 20,
-          color_code: '#EA580C',
+          color_code: '#ea580c',
           is_active: true
         }
       ];
@@ -492,7 +517,7 @@ export const HomePage: React.FC = () => {
   // Show maintenance page if enabled
   if (maintenanceMode) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4" dir={t('dir')}>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="max-w-md w-full text-center">
           <div className="bg-white rounded-lg shadow-lg p-8">
             <div className="text-6xl mb-4">🔧</div>
@@ -510,8 +535,8 @@ export const HomePage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" dir={t('dir')}>
-      {/* Medical Professional Header */}
+    <div className="min-h-screen bg-gray-50">
+      {/* Professional Medical Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -520,7 +545,7 @@ export const HomePage: React.FC = () => {
                 <Heart className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">{t('clinic_name')}</h1>
+                <h1 className="text-xl font-bold text-gray-900">MediQueue</h1>
                 <p className="text-xs text-gray-600">Professional Healthcare Services</p>
               </div>
             </div>
@@ -528,15 +553,15 @@ export const HomePage: React.FC = () => {
               <LanguageSwitcher />
               <Button variant="outline" onClick={() => setShowInteractiveGuide(true)} size="sm">
                 <Play className="h-4 w-4 mr-2" />
-                Guide
+                How it Works
               </Button>
               <Button variant="outline" onClick={() => setShowSelfLookup(true)} size="sm">
                 <Search className="h-4 w-4 mr-2" />
-                Track by UID
+                Track Appointment
               </Button>
-              <Button variant="outline" onClick={() => setShowPatientLookup(true)} size="sm">
-                <FileText className="h-4 w-4 mr-2" />
-                Medical Records
+              <Button variant="outline" onClick={() => window.open('/admin', '_blank')} size="sm">
+                <UserCheck className="h-4 w-4 mr-2" />
+                Admin Portal
               </Button>
             </div>
           </div>
@@ -547,9 +572,9 @@ export const HomePage: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Status Messages */}
         {error && (
-          <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-r-lg">
+          <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
             <div className="flex items-center">
-              <div className="text-red-400 mr-3">⚠️</div>
+              <AlertTriangle className="h-5 w-5 text-red-500 mr-3" />
               <div>
                 <h3 className="text-red-800 font-medium">System Notice</h3>
                 <p className="text-red-700 text-sm mt-1">{error}</p>
@@ -560,16 +585,16 @@ export const HomePage: React.FC = () => {
                 size="sm"
                 className="ml-auto"
               >
-                Dismiss
+                ×
               </Button>
             </div>
           </div>
         )}
 
         {success && (
-          <div className="mb-6 bg-green-50 border-l-4 border-green-400 p-4 rounded-r-lg">
+          <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg">
             <div className="flex items-center">
-              <div className="text-green-400 mr-3">✅</div>
+              <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
               <div>
                 <h3 className="text-green-800 font-medium">Success</h3>
                 <p className="text-green-700 text-sm mt-1">{success}</p>
@@ -580,7 +605,7 @@ export const HomePage: React.FC = () => {
                 size="sm"
                 className="ml-auto"
               >
-                Dismiss
+                ×
               </Button>
             </div>
           </div>
@@ -588,7 +613,7 @@ export const HomePage: React.FC = () => {
         
         {/* Professional Hero Section */}
         <div className="text-center mb-12">
-          <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
+          <div className="bg-white rounded-xl shadow-lg p-8 mb-8 border border-gray-200">
             <div className="flex items-center justify-center mb-6">
               <div className="bg-teal-100 rounded-full p-4 mr-4">
                 <Stethoscope className="h-12 w-12 text-teal-600" />
@@ -604,21 +629,21 @@ export const HomePage: React.FC = () => {
             </div>
             
             <div className="grid md:grid-cols-3 gap-6 mb-8">
-              <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <Shield className="h-8 w-8 text-teal-600" />
                 <div>
                   <h3 className="font-semibold text-gray-900">Secure & Private</h3>
                   <p className="text-sm text-gray-600">HIPAA compliant data protection</p>
                 </div>
               </div>
-              <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <Award className="h-8 w-8 text-teal-600" />
                 <div>
                   <h3 className="font-semibold text-gray-900">Professional Care</h3>
                   <p className="text-sm text-gray-600">Qualified medical professionals</p>
                 </div>
               </div>
-              <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <Clock className="h-8 w-8 text-teal-600" />
                 <div>
                   <h3 className="font-semibold text-gray-900">Time Efficient</h3>
@@ -630,7 +655,7 @@ export const HomePage: React.FC = () => {
             <Button
               onClick={() => setShowBookingModal(true)}
               size="lg"
-              className="bg-teal-600 hover:bg-teal-700 px-8 py-4 text-lg"
+              className="bg-teal-600 hover:bg-teal-700 px-8 py-4 text-lg shadow-lg"
             >
               <Calendar className="mr-2 h-6 w-6" />
               Book Appointment
@@ -639,7 +664,7 @@ export const HomePage: React.FC = () => {
         </div>
 
         {/* Interactive Guide Promotion */}
-        <Card className="mb-8 bg-gradient-to-r from-teal-50 to-cyan-50 border-teal-200">
+        <Card className="mb-8 bg-gradient-to-r from-teal-50 to-cyan-50 border-teal-200 shadow-md">
           <CardContent className="pt-6 pb-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
@@ -697,7 +722,7 @@ export const HomePage: React.FC = () => {
 
         {/* Professional Features Grid */}
         <div className="grid md:grid-cols-3 gap-8 mb-12">
-          <Card className="text-center hover:shadow-lg transition-shadow">
+          <Card className="text-center hover:shadow-lg transition-shadow border border-gray-200">
             <CardContent className="pt-8 pb-8">
               <div className="bg-teal-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
                 <Clock className="h-8 w-8 text-teal-600" />
@@ -709,7 +734,7 @@ export const HomePage: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card className="text-center hover:shadow-lg transition-shadow">
+          <Card className="text-center hover:shadow-lg transition-shadow border border-gray-200">
             <CardContent className="pt-8 pb-8">
               <div className="bg-teal-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
                 <QrCode className="h-8 w-8 text-teal-600" />
@@ -721,7 +746,7 @@ export const HomePage: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card className="text-center hover:shadow-lg transition-shadow">
+          <Card className="text-center hover:shadow-lg transition-shadow border border-gray-200">
             <CardContent className="pt-8 pb-8">
               <div className="bg-teal-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
                 <FileText className="h-8 w-8 text-teal-600" />
@@ -735,7 +760,7 @@ export const HomePage: React.FC = () => {
         </div>
 
         {/* Professional Process Steps */}
-        <Card className="mb-12">
+        <Card className="mb-12 border border-gray-200">
           <CardHeader className="bg-gray-50">
             <h3 className="text-2xl font-bold text-center text-gray-900">How Our System Works</h3>
           </CardHeader>
@@ -835,7 +860,7 @@ export const HomePage: React.FC = () => {
 
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-4">
-                <div className="bg-gray-50 rounded-lg p-4">
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                   <h4 className="font-semibold text-gray-900 mb-3">Appointment Details</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
@@ -867,7 +892,7 @@ export const HomePage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-teal-50 rounded-lg p-4">
+                <div className="bg-teal-50 rounded-lg p-4 border border-teal-200">
                   <h4 className="font-semibold text-teal-900 mb-3">Queue Information</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
@@ -974,7 +999,7 @@ export const HomePage: React.FC = () => {
               <p className="text-gray-600">Complete your payment to confirm your appointment</p>
             </div>
 
-            <div className="bg-gray-50 rounded-lg p-4">
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
               <h4 className="font-semibold text-gray-900 mb-3">Payment Summary</h4>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
