@@ -399,11 +399,13 @@ export const HomePage: React.FC = () => {
     }
   };
 
-  const handleDownloadQR = () => {
-    if (qrCodeDataURL && bookingResult) {
-      downloadQRCode(qrCodeDataURL, `clinic-token-${bookingResult.stn}.png`);
-    }
-  };
+ const handleDownloadQR = () => {
+  if (!qrCodeDataURL) {
+    console.warn("QR code not ready yet");
+    return;
+  }
+  downloadQRCode(qrCodeDataURL, `clinic-token-${bookingResult.stn}.png`);
+};
 
   const hospitalServices = [
     {
