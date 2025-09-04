@@ -21,7 +21,8 @@ import {
   Edit,
   Plus,
   Eye,
-  Activity
+  Activity,
+  CheckSquare
 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
