@@ -73,6 +73,13 @@ export const AdminPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [autoRefreshEnabled, refreshInterval, refetch]);
 
+  // Real-time updates
+  useRealTimeUpdates(() => {
+    if (autoRefreshEnabled) {
+      refetch();
+    }
+  });
+
   // Load refresh settings
   useEffect(() => {
     const loadRefreshSettings = async () => {
@@ -96,20 +103,13 @@ export const AdminPage: React.FC = () => {
     }
   }, [user]);
 
-  // Real-time updates
-  useRealTimeUpdates(() => {
-    if (autoRefreshEnabled) {
-      refetch();
-    }
-  });
-
   // If not authenticated, show login form
   if (!authLoading && !user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <h1 className="text-2xl font-bold text-center text-gray-900">{t('admin_login')}</h1>
+            <h1 className="text-2xl font-bold text-center text-gray-900">Admin Login</h1>
             <p className="text-center text-gray-600 text-sm mt-2">
               Use your Supabase admin credentials to access the dashboard
             </p>
