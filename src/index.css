@@ -2,16 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Medical theme color overrides */
-:root {
-  --medical-primary: #0d9488;
-  --medical-secondary: #059669;
-  --medical-accent: #10b981;
-  --medical-warning: #f59e0b;
-  --medical-error: #dc2626;
-  --medical-success: #059669;
-}
-
 /* Ensure proper button styling */
 @layer base {
   button {
@@ -32,7 +22,7 @@
   input:focus-visible,
   select:focus-visible,
   textarea:focus-visible {
-    @apply outline-none ring-2 ring-teal-500 ring-offset-2;
+    @apply outline-none ring-2 ring-blue-500 ring-offset-2;
   }
   
   /* Smooth transitions */
@@ -41,15 +31,6 @@
   select,
   textarea {
     @apply transition-colors duration-200;
-  }
-  
-  /* Medical professional styling */
-  body {
-    @apply bg-gray-50 text-gray-900;
-  }
-  
-  h1, h2, h3, h4, h5, h6 {
-    @apply text-gray-900;
   }
 }
 
