@@ -14,7 +14,8 @@ import {
   TrendingUp,
   DollarSign,
   Stethoscope,
-  Pill
+  Pill,
+  Bed  
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
