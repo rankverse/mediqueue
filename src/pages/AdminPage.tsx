@@ -24,6 +24,8 @@ import { QRScanner } from '../components/QRScanner';
 import { PatientLookup } from '../components/PatientLookup';
 import { PatientDetailModal } from '../components/PatientDetailModal';
 import { SettingsPanel } from '../components/SettingsPanel';
+import { PharmacyManagement } from '../components/PharmacyManagement';
+import { AdmissionManagement } from '../components/AdmissionManagement';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { useAuth } from '../hooks/useAuth';
 import { useQueue } from '../hooks/useQueue';
@@ -46,6 +48,8 @@ export const AdminPage: React.FC = () => {
   const [showPatientDetail, setShowPatientDetail] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [showSettings, setShowSettings] = useState(false);
+  const [showPharmacy, setShowPharmacy] = useState(false);
+  const [showAdmission, setShowAdmission] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [showVisitModal, setShowVisitModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -457,6 +461,22 @@ export const AdminPage: React.FC = () => {
                 <Settings className="mr-2 h-4 w-4" />
                 {t('settings')}
               </Button>
+              <Button 
+                onClick={() => setShowPharmacy(true)}
+                variant="outline"
+                size="sm"
+              >
+                <Pill className="mr-2 h-4 w-4" />
+                Pharmacy
+              </Button>
+              <Button 
+                onClick={() => setShowAdmission(true)}
+                variant="outline"
+                size="sm"
+              >
+                <Bed className="mr-2 h-4 w-4" />
+                Admissions
+              </Button>
               <Button variant="outline" onClick={() => signOut()} size="sm">
                 <LogOut className="mr-2 h-4 w-4" />
                 {t('sign_out')}
@@ -799,6 +819,19 @@ export const AdminPage: React.FC = () => {
                               {t('mark_paid')}
                             </Button>
                           )}
+                          
+                          {visit.status === 'completed' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedVisit(visit);
+                                setShowAdmission(true);
+                              }}
+                            >
+                              <Bed className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -841,6 +874,20 @@ export const AdminPage: React.FC = () => {
       <SettingsPanel
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
+      />
+
+      {/* Pharmacy Management */}
+      <PharmacyManagement
+        isOpen={showPharmacy}
+        onClose={() => setShowPharmacy(false)}
+      />
+
+      {/* Admission Management */}
+      <AdmissionManagement
+        isOpen={showAdmission}
+        onClose={() => setShowAdmission(false)}
+        patientId={selectedVisit?.patient_id}
+        visitId={selectedVisit?.id}
       />
 
       {/* Visit Details Modal */}

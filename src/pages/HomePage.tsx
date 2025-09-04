@@ -35,7 +35,8 @@ import { InteractiveGuide } from '../components/InteractiveGuide';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { QueueWidget } from '../components/QueueWidget';
 import { Queue2DVisualization } from '../components/Queue2DVisualization';
-import { BookingForm } from '../components/BookingForm';
+import { AppointmentBooking } from '../components/AppointmentBooking';
+import { AdvancedAdminPanel } from '../components/AdvancedAdminPanel';
 import { PatientLookup } from '../components/PatientLookup';
 import { PatientSelfLookup } from '../components/PatientSelfLookup';
 import { useTranslation } from '../lib/translations';
@@ -47,7 +48,8 @@ import { useRealTimeUpdates } from '../hooks/useRealTimeUpdates';
 
 export const HomePage: React.FC = () => {
   const { t } = useTranslation();
-  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [showAdvancedAdmin, setShowAdvancedAdmin] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [showPatientLookup, setShowPatientLookup] = useState(false);
   const [showSelfLookup, setShowSelfLookup] = useState(false);
@@ -497,6 +499,10 @@ export const HomePage: React.FC = () => {
                 <UserCheck className="h-4 w-4 mr-2" />
                 Admin Portal
               </Button>
+              <Button variant="outline" onClick={() => setShowAdvancedAdmin(true)} size="sm">
+                <Building2 className="h-4 w-4 mr-2" />
+                Advanced Admin
+              </Button>
             </div>
           </div>
         </div>
@@ -588,12 +594,12 @@ export const HomePage: React.FC = () => {
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
-                onClick={() => setShowBookingModal(true)}
+                onClick={() => setShowAppointmentModal(true)}
                 size="lg"
                 className="bg-teal-600 hover:bg-teal-700 px-8 py-4 text-lg shadow-lg"
               >
                 <Calendar className="mr-2 h-6 w-6" />
-                Book Appointment
+                Book Medical Services
               </Button>
               <Button
                 onClick={() => setShowServicesModal(true)}
@@ -777,14 +783,21 @@ export const HomePage: React.FC = () => {
       </footer>
 
       {/* Booking Modal */}
-      <Modal
-        isOpen={showBookingModal}
-        onClose={() => setShowBookingModal(false)}
-        title="Book Your Appointment"
-        size="lg"
-      >
-        <BookingForm onSubmit={handleBookToken} loading={bookingLoading} />
-      </Modal>
+      <AppointmentBooking
+        isOpen={showAppointmentModal}
+        onClose={() => setShowAppointmentModal(false)}
+        onSuccess={(result) => {
+          setBookingResult(result);
+          setShowConfirmationModal(true);
+          setSuccess('Service booked successfully!');
+        }}
+      />
+
+      {/* Advanced Admin Panel */}
+      <AdvancedAdminPanel
+        isOpen={showAdvancedAdmin}
+        onClose={() => setShowAdvancedAdmin(false)}
+      />
 
       {/* Hospital Services Modal */}
       <Modal
