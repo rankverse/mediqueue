@@ -2,18 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Medical theme color overrides */
-:root {
-  --medical-primary: #0f766e;
-  --medical-secondary: #0d9488;
-  --medical-accent: #14b8a6;
-  --medical-warning: #f59e0b;
-  --medical-error: #dc2626;
-  --medical-success: #0d9488;
-  --medical-neutral: #64748b;
-  --medical-light: #f0fdfa;
-}
-
 /* Ensure proper button styling */
 @layer base {
   button {
@@ -34,7 +22,7 @@
   input:focus-visible,
   select:focus-visible,
   textarea:focus-visible {
-    @apply outline-none ring-2 ring-teal-500 ring-offset-2;
+    @apply outline-none ring-2 ring-blue-500 ring-offset-2;
   }
   
   /* Smooth transitions */
@@ -43,52 +31,6 @@
   select,
   textarea {
     @apply transition-colors duration-200;
-  }
-  
-  /* Medical professional styling */
-  body {
-    @apply bg-slate-50 text-slate-900;
-  }
-  
-  h1, h2, h3, h4, h5, h6 {
-    @apply text-slate-900;
-  }
-  
-  /* Professional medical card styling */
-  .medical-card {
-    @apply bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200;
-  }
-  
-  .medical-card-header {
-    @apply bg-slate-50 border-b border-slate-200 px-6 py-4 rounded-t-xl;
-  }
-  
-  .medical-button-primary {
-    @apply bg-teal-600 hover:bg-teal-700 text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md;
-  }
-  
-  .medical-button-secondary {
-    @apply bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200;
-  }
-  
-  .medical-input {
-    @apply border-slate-300 focus:border-teal-500 focus:ring-teal-500 rounded-lg;
-  }
-  
-  .medical-status-waiting {
-    @apply bg-amber-50 text-amber-800 border-amber-200;
-  }
-  
-  .medical-status-active {
-    @apply bg-teal-50 text-teal-800 border-teal-200;
-  }
-  
-  .medical-status-completed {
-    @apply bg-emerald-50 text-emerald-800 border-emerald-200;
-  }
-  
-  .medical-status-urgent {
-    @apply bg-red-50 text-red-800 border-red-200;
   }
 }
 
