@@ -892,6 +892,12 @@ export const AdminPage: React.FC = () => {
         visitId={selectedVisit?.id}
       />
 
+      {/* Advanced Admin Panel */}
+      <AdvancedAdminPanel
+        isOpen={showAdvancedAdmin}
+        onClose={() => setShowAdvancedAdmin(false)}
+      />
+
       {/* Visit Details Modal */}
       <Modal
         isOpen={showVisitModal}
