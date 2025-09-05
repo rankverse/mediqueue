@@ -13,7 +13,9 @@ import {
   UserSearch,
   TrendingUp,
   DollarSign,
-  Stethoscope
+  Stethoscope,
+  Pill,
+  Bed  
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -24,6 +26,8 @@ import { QRScanner } from '../components/QRScanner';
 import { PatientLookup } from '../components/PatientLookup';
 import { PatientDetailModal } from '../components/PatientDetailModal';
 import { SettingsPanel } from '../components/SettingsPanel';
+import { PharmacyManagement } from '../components/PharmacyManagement';
+import { AdmissionManagement } from '../components/AdmissionManagement';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { useAuth } from '../hooks/useAuth';
 import { useQueue } from '../hooks/useQueue';
@@ -46,6 +50,8 @@ export const AdminPage: React.FC = () => {
   const [showPatientDetail, setShowPatientDetail] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [showSettings, setShowSettings] = useState(false);
+  const [showPharmacy, setShowPharmacy] = useState(false);
+  const [showAdmission, setShowAdmission] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [showVisitModal, setShowVisitModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -73,6 +79,13 @@ export const AdminPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [autoRefreshEnabled, refreshInterval, refetch]);
 
+  // Real-time updates
+  useRealTimeUpdates(() => {
+    if (autoRefreshEnabled) {
+      refetch();
+    }
+  });
+
   // Load refresh settings
   useEffect(() => {
     const loadRefreshSettings = async () => {
@@ -96,20 +109,13 @@ export const AdminPage: React.FC = () => {
     }
   }, [user]);
 
-  // Real-time updates
-  useRealTimeUpdates(() => {
-    if (autoRefreshEnabled) {
-      refetch();
-    }
-  });
-
   // If not authenticated, show login form
   if (!authLoading && !user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <h1 className="text-2xl font-bold text-center text-gray-900">{t('admin_login')}</h1>
+            <h1 className="text-2xl font-bold text-center text-gray-900">Admin Login</h1>
             <p className="text-center text-gray-600 text-sm mt-2">
               Use your Supabase admin credentials to access the dashboard
             </p>
@@ -457,6 +463,22 @@ export const AdminPage: React.FC = () => {
                 <Settings className="mr-2 h-4 w-4" />
                 {t('settings')}
               </Button>
+              <Button 
+                onClick={() => setShowPharmacy(true)}
+                variant="outline"
+                size="sm"
+              >
+                <Pill className="mr-2 h-4 w-4" />
+                Pharmacy
+              </Button>
+              <Button 
+                onClick={() => setShowAdmission(true)}
+                variant="outline"
+                size="sm"
+              >
+                <Bed className="mr-2 h-4 w-4" />
+                Admissions
+              </Button>
               <Button variant="outline" onClick={() => signOut()} size="sm">
                 <LogOut className="mr-2 h-4 w-4" />
                 {t('sign_out')}
@@ -799,6 +821,19 @@ export const AdminPage: React.FC = () => {
                               {t('mark_paid')}
                             </Button>
                           )}
+                          
+                          {visit.status === 'completed' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedVisit(visit);
+                                setShowAdmission(true);
+                              }}
+                            >
+                              <Bed className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -841,6 +876,20 @@ export const AdminPage: React.FC = () => {
       <SettingsPanel
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
+      />
+
+      {/* Pharmacy Management */}
+      <PharmacyManagement
+        isOpen={showPharmacy}
+        onClose={() => setShowPharmacy(false)}
+      />
+
+      {/* Admission Management */}
+      <AdmissionManagement
+        isOpen={showAdmission}
+        onClose={() => setShowAdmission(false)}
+        patientId={selectedVisit?.patient_id}
+        visitId={selectedVisit?.id}
       />
 
       {/* Visit Details Modal */}
