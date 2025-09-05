@@ -915,7 +915,7 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
                           onClick={() => removeMedicine(index)}
                           variant="outline"
                           size="sm"
-                        >
+                        <>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                         <Button
@@ -935,7 +935,7 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
                           }}
                           size="sm"
                           variant="outline"
-                        >
+                        </>
                           <Bed className="h-4 w-4 mr-2" />
                           Suggest Admission
                         </Button>
