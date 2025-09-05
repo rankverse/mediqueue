@@ -904,20 +904,29 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
               </Button>
             </div>
 
-            <div className="space-y-4">
-              {currentPrescription.medicines.map((medicine, index) => (
-                <Card key={index}>
-                  <CardContent className="pt-4">
-                    <div className="flex items-start justify-between mb-4">
-                      <h5 className="font-medium text-gray-900">Medicine {index + 1}</h5>
-                      {currentPrescription.medicines.length > 1 && (
-                        <Button
-                          onClick={() => removeMedicine(index)}
-                          variant="outline"
-                          size="sm"
-                        <>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+            <div className="flex gap-2">
+  <Button variant="outline" size="sm">
+    <Trash2 className="h-4 w-4" />
+  </Button>
+
+  <Button
+    onClick={() => {
+      const admissionSuggestion = {
+        patient_id: currentPatient.patient_id,
+        visit_id: currentPatient.id,
+        doctor_id: selectedDoctorId,
+        reason: "Doctor recommendation for admission",
+        priority: "normal",
+        suggested_ward: "general",
+      };
+      console.log("Admission Suggestion:", admissionSuggestion);
+    }}
+    size="sm"
+  >
+    Suggest Admission
+  </Button>
+</div>
+
                         <Button
                           onClick={() => {
                             // Suggest admission
