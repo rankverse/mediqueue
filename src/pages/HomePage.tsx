@@ -501,10 +501,6 @@ export const HomePage: React.FC = () => {
                 <UserCheck className="h-4 w-4 mr-2" />
                 Admin Portal
               </Button>
-              <Button variant="outline" onClick={() => setShowAdvancedAdmin(true)} size="sm">
-                <Building2 className="h-4 w-4 mr-2" />
-                Advanced Admin
-              </Button>
             </div>
           </div>
         </div>

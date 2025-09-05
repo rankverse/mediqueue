@@ -13,7 +13,11 @@ import {
   Phone,
   Mail,
   Heart,
-  Activity
+  Activity,
+  Building2,
+  DollarSign,
+  Shield,
+  UserCheck
 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -37,13 +41,13 @@ interface AdmissionRequest {
   doctor_id: string;
   admission_type: 'emergency' | 'planned' | 'observation' | 'surgery';
   ward_type: 'general' | 'private' | 'icu' | 'semi_private';
+  room_id: string;
   estimated_duration: number;
   reason: string;
   special_requirements: string;
   insurance_details: string;
-  emergency_contact: string;
-  advance_payment: number;
   total_estimated_cost: number;
+  advance_payment: number;
   status: 'pending' | 'approved' | 'admitted' | 'discharged';
 }
 
@@ -56,6 +60,19 @@ interface AdmissionPaperwork {
   advance_payment_received: boolean;
   room_assignment: boolean;
   doctor_briefing: boolean;
+}
+
+interface Room {
+  id: string;
+  room_number: string;
+  room_type: 'general' | 'private' | 'icu' | 'semi_private';
+  floor_number: number;
+  bed_count: number;
+  daily_rate: number;
+  amenities: string[];
+  current_patient_id?: string;
+  maintenance_status: 'available' | 'occupied' | 'maintenance' | 'cleaning';
+  last_cleaned: string;
 }
 
 export const AdmissionManagement: React.FC<AdmissionManagementProps> = ({
@@ -85,49 +102,158 @@ export const AdmissionManagement: React.FC<AdmissionManagementProps> = ({
   });
 
   const [patient, setPatient] = useState<any>(null);
-  const [availableRooms, setAvailableRooms] = useState<any[]>([]);
+  const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [selectedRoom, setSelectedRoom] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [totalSteps] = useState(4);
+  const [admissionRequests, setAdmissionRequests] = useState<any[]>([]);
+  const [showRequestsView, setShowRequestsView] = useState(false);
 
   useEffect(() => {
-    if (isOpen && patientId) {
-      fetchPatientDetails();
+    if (isOpen) {
+      if (patientId) {
+        fetchPatientDetails();
+      }
       fetchAvailableRooms();
+      fetchAdmissionRequests();
     }
   }, [isOpen, patientId]);
 
   const fetchPatientDetails = async () => {
     try {
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('id', patientId)
-        .single();
-
-      if (error) throw error;
-      setPatient(data);
+      // Demo patient data
+      const demoPatient = {
+        id: patientId,
+        uid: 'CLN1-ABC123',
+        name: 'John Doe',
+        age: 35,
+        phone: '+91-9876543210',
+        email: 'john.doe@email.com',
+        blood_group: 'O+',
+        allergies: ['Penicillin'],
+        medical_conditions: ['Hypertension'],
+        emergency_contact: '+91-9876543211'
+      };
+      
+      setPatient(demoPatient);
     } catch (error) {
       console.error('Error fetching patient:', error);
     }
   };
 
   const fetchAvailableRooms = async () => {
-    // Demo room data
-    const rooms = [
-      { id: 'R101', type: 'general', name: 'General Ward - Room 101', price: 1500, available: true },
-      { id: 'R201', type: 'private', name: 'Private Room 201', price: 3000, available: true },
-      { id: 'R301', type: 'semi_private', name: 'Semi-Private Room 301', price: 2000, available: false },
-      { id: 'ICU1', type: 'icu', name: 'ICU Bed 1', price: 5000, available: true }
-    ];
-    
-    setAvailableRooms(rooms);
+    try {
+      const demoRooms: Room[] = [
+        {
+          id: 'R101',
+          room_number: '101',
+          room_type: 'general',
+          floor_number: 1,
+          bed_count: 4,
+          daily_rate: 1500,
+          amenities: ['AC', 'TV', 'Attached Bathroom'],
+          maintenance_status: 'available',
+          last_cleaned: new Date().toISOString()
+        },
+        {
+          id: 'R201',
+          room_number: '201',
+          room_type: 'private',
+          floor_number: 2,
+          bed_count: 1,
+          daily_rate: 3000,
+          amenities: ['AC', 'TV', 'Attached Bathroom', 'Refrigerator', 'Sofa'],
+          maintenance_status: 'available',
+          last_cleaned: new Date().toISOString()
+        },
+        {
+          id: 'R301',
+          room_number: '301',
+          room_type: 'semi_private',
+          floor_number: 3,
+          bed_count: 2,
+          daily_rate: 2000,
+          amenities: ['AC', 'TV', 'Attached Bathroom'],
+          current_patient_id: 'patient-123',
+          maintenance_status: 'occupied',
+          last_cleaned: new Date(Date.now() - 86400000).toISOString()
+        },
+        {
+          id: 'ICU1',
+          room_number: 'ICU-1',
+          room_type: 'icu',
+          floor_number: 4,
+          bed_count: 1,
+          daily_rate: 5000,
+          amenities: ['Ventilator', 'Cardiac Monitor', 'Defibrillator', 'Central AC'],
+          maintenance_status: 'available',
+          last_cleaned: new Date().toISOString()
+        }
+      ];
+      
+      setAvailableRooms(demoRooms);
+    } catch (error) {
+      console.error('Error fetching rooms:', error);
+    }
+  };
+
+  const fetchAdmissionRequests = async () => {
+    try {
+      const demoRequests = [
+        {
+          id: '1',
+          patient: {
+            name: 'John Doe',
+            uid: 'CLN1-ABC123',
+            age: 35,
+            phone: '+91-9876543210'
+          },
+          doctor: {
+            name: 'Dr. Sarah Johnson',
+            specialization: 'general'
+          },
+          admission_type: 'planned',
+          ward_type: 'private',
+          reason: 'Requires observation for chest pain',
+          estimated_duration: 2,
+          estimated_cost: 6000,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+          priority: 'normal'
+        },
+        {
+          id: '2',
+          patient: {
+            name: 'Jane Smith',
+            uid: 'CLN1-XYZ789',
+            age: 28,
+            phone: '+91-9876543211'
+          },
+          doctor: {
+            name: 'Dr. Michael Chen',
+            specialization: 'cardiology'
+          },
+          admission_type: 'emergency',
+          ward_type: 'icu',
+          reason: 'Acute myocardial infarction',
+          estimated_duration: 5,
+          estimated_cost: 25000,
+          status: 'pending',
+          created_at: new Date(Date.now() - 1800000).toISOString(),
+          priority: 'urgent'
+        }
+      ];
+      
+      setAdmissionRequests(demoRequests);
+    } catch (error) {
+      console.error('Error fetching admission requests:', error);
+    }
   };
 
   const calculateEstimatedCost = () => {
     const room = availableRooms.find(r => r.id === selectedRoom);
-    const roomCost = room ? room.price * (admissionData.estimated_duration || 1) : 0;
+    const roomCost = room ? room.daily_rate * (admissionData.estimated_duration || 1) : 0;
     const doctorFees = 1000; // Base doctor fees
     const nursingCare = 500 * (admissionData.estimated_duration || 1);
     const miscCharges = 300;
@@ -168,9 +294,15 @@ export const AdmissionManagement: React.FC<AdmissionManagementProps> = ({
         status: 'admitted'
       };
 
-      // In real implementation, save to database
       console.log('Processing admission:', admissionRecord);
       
+      // Update room status
+      setAvailableRooms(prev => prev.map(room => 
+        room.id === selectedRoom 
+          ? { ...room, maintenance_status: 'occupied' as const, current_patient_id: patientId }
+          : room
+      ));
+
       alert('Patient admitted successfully!');
       onClose();
     } catch (error) {
@@ -178,6 +310,17 @@ export const AdmissionManagement: React.FC<AdmissionManagementProps> = ({
       alert('Failed to process admission');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const approveAdmissionRequest = async (requestId: string) => {
+    try {
+      setAdmissionRequests(prev => prev.map(req => 
+        req.id === requestId ? { ...req, status: 'approved' } : req
+      ));
+      alert('Admission request approved!');
+    } catch (error) {
+      console.error('Error approving admission:', error);
     }
   };
 
@@ -191,16 +334,23 @@ export const AdmissionManagement: React.FC<AdmissionManagementProps> = ({
             {patient && (
               <Card className="bg-teal-50 border border-teal-200">
                 <CardContent className="pt-4">
-                  <h4 className="font-semibold text-teal-900 mb-2">Patient Information</h4>
+                  <h4 className="font-semibold text-teal-900 mb-2 flex items-center">
+                    <User className="h-5 w-5 mr-2" />
+                    Patient Information
+                  </h4>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <p><strong>Name:</strong> {patient.name}</p>
                       <p><strong>Age:</strong> {patient.age} years</p>
                       <p><strong>Phone:</strong> {patient.phone}</p>
+                      <p><strong>Patient ID:</strong> {patient.uid}</p>
                     </div>
                     <div>
                       <p><strong>Blood Group:</strong> {patient.blood_group || 'Not specified'}</p>
                       <p><strong>Emergency Contact:</strong> {patient.emergency_contact || 'Not provided'}</p>
+                      {patient.allergies && patient.allergies.length > 0 && (
+                        <p><strong>Allergies:</strong> {patient.allergies.join(', ')}</p>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -281,35 +431,48 @@ export const AdmissionManagement: React.FC<AdmissionManagementProps> = ({
             
             <div className="grid gap-4">
               {availableRooms
-                .filter(room => room.type === admissionData.ward_type)
+                .filter(room => room.room_type === admissionData.ward_type)
                 .map((room) => (
                 <Card 
                   key={room.id}
                   className={`cursor-pointer transition-all border-2 ${
                     selectedRoom === room.id 
                       ? 'border-teal-500 bg-teal-50' 
-                      : room.available 
+                      : room.maintenance_status === 'available'
                         ? 'border-gray-200 hover:border-teal-300' 
                         : 'border-red-200 bg-red-50'
                   }`}
-                  onClick={() => room.available && setSelectedRoom(room.id)}
+                  onClick={() => room.maintenance_status === 'available' && setSelectedRoom(room.id)}
                 >
                   <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-3">
                       <div>
-                        <h4 className="font-semibold text-gray-900">{room.name}</h4>
-                        <p className="text-sm text-gray-600">₹{room.price}/day</p>
+                        <h4 className="font-semibold text-gray-900 flex items-center">
+                          <Building2 className="h-4 w-4 mr-2" />
+                          Room {room.room_number} - Floor {room.floor_number}
+                        </h4>
+                        <p className="text-sm text-gray-600">
+                          {room.bed_count} bed{room.bed_count > 1 ? 's' : ''} | ₹{room.daily_rate}/day
+                        </p>
                       </div>
                       <div className="flex items-center space-x-2">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          room.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          room.maintenance_status === 'available' ? 'bg-green-100 text-green-800' :
+                          room.maintenance_status === 'occupied' ? 'bg-red-100 text-red-800' :
+                          room.maintenance_status === 'maintenance' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-blue-100 text-blue-800'
                         }`}>
-                          {room.available ? 'Available' : 'Occupied'}
+                          {room.maintenance_status.toUpperCase()}
                         </span>
                         {selectedRoom === room.id && (
                           <CheckSquare className="h-5 w-5 text-teal-600" />
                         )}
                       </div>
+                    </div>
+
+                    <div className="text-sm text-gray-600">
+                      <p><strong>Amenities:</strong> {room.amenities.join(', ')}</p>
+                      <p><strong>Last Cleaned:</strong> {formatDate(room.last_cleaned)}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -319,11 +482,14 @@ export const AdmissionManagement: React.FC<AdmissionManagementProps> = ({
             {selectedRoom && (
               <Card className="bg-green-50 border border-green-200">
                 <CardContent className="pt-4">
-                  <h4 className="font-semibold text-green-900 mb-2">Cost Estimation</h4>
+                  <h4 className="font-semibold text-green-900 mb-2 flex items-center">
+                    <DollarSign className="h-5 w-5 mr-2" />
+                    Cost Estimation
+                  </h4>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
                       <span>Room charges ({admissionData.estimated_duration} days):</span>
-                      <span>₹{(availableRooms.find(r => r.id === selectedRoom)?.price || 0) * (admissionData.estimated_duration || 1)}</span>
+                      <span>₹{(availableRooms.find(r => r.id === selectedRoom)?.daily_rate || 0) * (admissionData.estimated_duration || 1)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Doctor fees:</span>
@@ -387,7 +553,10 @@ export const AdmissionManagement: React.FC<AdmissionManagementProps> = ({
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-semibold text-blue-900 mb-2">Paperwork Progress</h4>
+              <h4 className="font-semibold text-blue-900 mb-2 flex items-center">
+                <Clipboard className="h-5 w-5 mr-2" />
+                Paperwork Progress
+              </h4>
               <div className="w-full bg-blue-200 rounded-full h-3">
                 <div 
                   className="bg-blue-600 h-3 rounded-full transition-all duration-500"
@@ -408,11 +577,14 @@ export const AdmissionManagement: React.FC<AdmissionManagementProps> = ({
             
             <Card className="bg-yellow-50 border border-yellow-200">
               <CardContent className="pt-4">
-                <h4 className="font-semibold text-yellow-900 mb-3">Cost Breakdown</h4>
+                <h4 className="font-semibold text-yellow-900 mb-3 flex items-center">
+                  <DollarSign className="h-5 w-5 mr-2" />
+                  Cost Breakdown
+                </h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span>Room charges:</span>
-                    <span>₹{(availableRooms.find(r => r.id === selectedRoom)?.price || 0) * (admissionData.estimated_duration || 1)}</span>
+                    <span>₹{(availableRooms.find(r => r.id === selectedRoom)?.daily_rate || 0) * (admissionData.estimated_duration || 1)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Medical charges:</span>
@@ -433,7 +605,7 @@ export const AdmissionManagement: React.FC<AdmissionManagementProps> = ({
                 value={admissionData.advance_payment || ''}
                 onChange={(e) => setAdmissionData(prev => ({ ...prev, advance_payment: parseFloat(e.target.value) || 0 }))}
                 min="0"
-                placeholder="Minimum 50% of estimated cost"
+                placeholder={`Minimum ₹${Math.round(calculateEstimatedCost() * 0.5)}`}
                 required
               />
 
@@ -460,12 +632,16 @@ export const AdmissionManagement: React.FC<AdmissionManagementProps> = ({
             />
 
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <h4 className="font-semibold text-red-900 mb-2">Important Notes:</h4>
+              <h4 className="font-semibold text-red-900 mb-2 flex items-center">
+                <AlertTriangle className="h-5 w-5 mr-2" />
+                Important Notes:
+              </h4>
               <ul className="text-sm text-red-800 space-y-1">
                 <li>• Advance payment is required for admission</li>
                 <li>• Final bill will be generated at discharge</li>
                 <li>• Insurance claims will be processed separately</li>
                 <li>• Emergency contact will be notified</li>
+                <li>• Room can be changed based on availability</li>
               </ul>
             </div>
           </div>
@@ -490,9 +666,109 @@ export const AdmissionManagement: React.FC<AdmissionManagementProps> = ({
     return descriptions[key] || '';
   };
 
+  if (showRequestsView) {
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title="Admission Requests" size="xl">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Pending Admission Requests</h3>
+            <Button onClick={() => setShowRequestsView(false)} variant="outline">
+              New Admission
+            </Button>
+          </div>
+
+          <div className="space-y-4">
+            {admissionRequests.map((request) => (
+              <Card key={request.id} className={`border-l-4 ${
+                request.priority === 'urgent' ? 'border-red-500' : 'border-blue-500'
+              }`}>
+                <CardContent className="pt-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h4 className="font-semibold text-gray-900">{request.patient.name}</h4>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          request.priority === 'urgent' ? 'bg-red-100 text-red-800' :
+                          request.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {request.priority.toUpperCase()}
+                        </span>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          request.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          request.status === 'approved' ? 'bg-green-100 text-green-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {request.status.toUpperCase()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">
+                        Recommended by: Dr. {request.doctor.name} ({request.doctor.specialization})
+                      </p>
+                      <p className="text-sm text-gray-600 mb-2">
+                        Patient: {request.patient.uid} | Age: {request.patient.age} | Phone: {request.patient.phone}
+                      </p>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-sm"><strong>Reason:</strong> {request.reason}</p>
+                        <div className="flex items-center space-x-4 mt-2 text-sm">
+                          <span className="capitalize">{request.admission_type} admission</span>
+                          <span className="capitalize">{request.ward_type} ward</span>
+                          <span>{request.estimated_duration} days</span>
+                          <span className="font-medium text-green-600">₹{request.estimated_cost}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2 ml-4">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          // View full details
+                          alert('View full admission request details');
+                        }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => approveAdmissionRequest(request.id)}
+                        disabled={request.status !== 'pending'}
+                      >
+                        <UserCheck className="h-4 w-4 mr-1" />
+                        {request.status === 'pending' ? 'Approve' : 'Approved'}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+
+            {admissionRequests.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <Bed className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p>No admission requests found</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Patient Admission Process" size="xl">
       <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Admission Management</h3>
+            <p className="text-sm text-gray-600">Complete 4-step admission process</p>
+          </div>
+          <Button onClick={() => setShowRequestsView(true)} variant="outline">
+            <FileText className="h-4 w-4 mr-2" />
+            View Requests ({admissionRequests.length})
+          </Button>
+        </div>
+
         {/* Progress Steps */}
         <div className="flex items-center justify-between">
           {Array.from({ length: totalSteps }, (_, i) => i + 1).map((step) => (
