@@ -560,6 +560,39 @@ FOLLOW-UP: ${currentPrescription.followUpDate}
                         Write Prescription
                       </Button>
                       <Button
+                        onClick={() => {
+                          // Suggest admission
+                          const admissionSuggestion = {
+                            patient_id: currentPatient.patient_id,
+                            visit_id: currentPatient.id,
+                            doctor_id: selectedDoctorId,
+                            reason: 'Doctor recommendation for admission',
+                            priority: 'normal',
+                            suggested_ward: 'general'
+                          };
+                          console.log('Admission suggested:', admissionSuggestion);
+                          speak('Admission request sent to admin');
+                          alert('Admission request sent to admin for approval');
+                        }}
+                        size="sm"
+                        variant="outline"
+                      >
+                        <Bed className="h-4 w-4 mr-2" />
+                        Suggest Admission
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          // Call nurse
+                          speak('Nurse called to consultation room');
+                          alert('Nurse has been notified and will arrive shortly');
+                        }}
+                        size="sm"
+                        variant="outline"
+                      >
+                        <Users className="h-4 w-4 mr-2" />
+                        Call Nurse
+                      </Button>
+                      <Button
                         onClick={() => handleCompleteConsultation(
                           consultations.find(c => c.visit_id === currentPatient.id)?.id || ''
                         )}

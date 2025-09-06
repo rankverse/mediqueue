@@ -166,6 +166,11 @@ export interface BookingResponse {
   estimated_wait_minutes: number;
   now_serving: number;
   position: number;
+  qr_code_url?: string;
+  appointment_time?: string;
+  daycare_type?: string;
+  duration_hours?: number;
+  total_cost?: number;
   doctor?: Doctor;
 }
 

@@ -151,6 +151,36 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
         setting_value: true,
         setting_type: 'payment',
         description: 'Enable online payment processing'
+      },
+      {
+        setting_key: 'daycare_base_rate',
+        setting_value: 2000,
+        setting_type: 'general',
+        description: 'Base day care rate per day'
+      },
+      {
+        setting_key: 'attendant_fee',
+        setting_value: 500,
+        setting_type: 'general',
+        description: 'Attendant service fee per day'
+      },
+      {
+        setting_key: 'appointment_advance_days',
+        setting_value: 30,
+        setting_type: 'general',
+        description: 'Maximum days in advance for appointments'
+      },
+      {
+        setting_key: 'room_cleaning_interval',
+        setting_value: 24,
+        setting_type: 'general',
+        description: 'Room cleaning interval in hours'
+      },
+      {
+        setting_key: 'admission_advance_payment_percent',
+        setting_value: 50,
+        setting_type: 'general',
+        description: 'Minimum advance payment percentage for admissions'
       }
     ];
 
