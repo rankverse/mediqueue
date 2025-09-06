@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, User, CreditCard, Building2, Bed, Pill } from 'lucide-react';
+import { Calendar, Clock, User, CreditCard, Building2, Bed, Pill, Heart, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
@@ -120,6 +120,18 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({
             is_active: true,
             created_at: '',
             updated_at: ''
+          },
+          {
+            id: '4',
+            name: 'pediatrics',
+            display_name: 'Pediatrics',
+            description: 'Child healthcare',
+            consultation_fee: 600,
+            average_consultation_time: 20,
+            color_code: '#ea580c',
+            is_active: true,
+            created_at: '',
+            updated_at: ''
           }
         ]);
         return;
@@ -169,6 +181,20 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({
             status: 'active',
             created_at: '',
             updated_at: ''
+          },
+          {
+            id: '3',
+            name: 'Dr. Emily Rodriguez',
+            specialization: 'orthopedics',
+            qualification: 'MBBS, MS Orthopedics',
+            experience_years: 12,
+            consultation_fee: 700,
+            available_days: ['tuesday', 'thursday', 'saturday'],
+            available_hours: { start: '08:00', end: '16:00' },
+            max_patients_per_day: 40,
+            status: 'active',
+            created_at: '',
+            updated_at: ''
           }
         ]);
         return;
@@ -213,7 +239,7 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({
         const timeString = start.toTimeString().slice(0, 5);
         
         // Check if slot is already booked (in real implementation)
-        const isBooked = false; // This would check against existing appointments
+        const isBooked = Math.random() > 0.7; // Random availability for demo
         
         slots.push({
           time: timeString,
@@ -237,16 +263,20 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({
 
     try {
       // Validate form
-      if (!formData.name || !formData.phone || !formData.department) {
-        throw new Error('Please fill in all required fields');
+      if (!formData.name || !formData.phone || !formData.age) {
+        throw new Error('Please fill in all required fields (Name, Phone, Age)');
       }
 
       if (bookingType === 'appointment' && (!selectedDate || !selectedSlot)) {
-        throw new Error('Please select date and time slot');
+        throw new Error('Please select date and time slot for appointment');
       }
 
       if (bookingType === 'daycare' && !daycareData.daycare_type) {
         throw new Error('Please select day care type');
+      }
+
+      if (!formData.department && bookingType !== 'daycare') {
+        throw new Error('Please select a department');
       }
 
       let result: BookingResponse;
@@ -260,7 +290,6 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({
       }
 
       onSuccess(result);
-      onClose();
       
     } catch (error: any) {
       setError(error.message || 'Booking failed. Please try again.');
@@ -271,124 +300,31 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({
 
   const createWalkInAppointment = async (): Promise<BookingResponse> => {
     const today = new Date().toISOString().split('T')[0];
+    const uid = generateUID();
     
-    // Check if patient exists by phone
-    let patient;
-    if (isSupabaseConfigured) {
-      const { data: existingPatients } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('phone', formData.phone)
-        .limit(1);
-
-      patient = existingPatients?.[0];
-    }
-    
-    // Create new patient if doesn't exist
-    if (!patient) {
-      const uid = generateUID();
-      
-      const allergies = formData.allergies ? 
-        formData.allergies.split(',').map(item => item.trim()).filter(Boolean) : 
-        [];
-      const medicalConditions = formData.medical_conditions ? 
-        formData.medical_conditions.split(',').map(item => item.trim()).filter(Boolean) : 
-        [];
-      
-      if (isSupabaseConfigured) {
-        const { data: newPatient, error: createPatientError } = await supabase
-          .from('patients')
-          .insert({
-            uid,
-            name: formData.name,
-            age: formData.age,
-            phone: formData.phone,
-            email: formData.email || null,
-            address: formData.address || null,
-            emergency_contact: formData.emergency_contact || null,
-            blood_group: formData.blood_group || null,
-            allergies: allergies.length > 0 ? allergies : null,
-            medical_conditions: medicalConditions.length > 0 ? medicalConditions : null,
-          })
-          .select()
-          .single();
-
-        if (createPatientError) throw createPatientError;
-        patient = newPatient;
-      } else {
-        // Demo patient
-        patient = {
-          id: '1',
-          uid,
-          name: formData.name,
-          age: formData.age,
-          phone: formData.phone,
-          email: formData.email,
-          address: formData.address,
-          emergency_contact: formData.emergency_contact,
-          blood_group: formData.blood_group,
-          allergies,
-          medical_conditions: medicalConditions,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-      }
-    }
-
     // Get next STN for today and department
-    let nextSTN = 1;
-    if (isSupabaseConfigured) {
-      const { data: existingVisits } = await supabase
-        .from('visits')
-        .select('stn')
-        .eq('visit_date', today)
-        .eq('department', formData.department)
-        .order('stn', { ascending: false })
-        .limit(1);
-
-      nextSTN = (existingVisits?.[0]?.stn || 0) + 1;
-    } else {
-      nextSTN = Math.floor(Math.random() * 50) + 1;
-    }
+    const nextSTN = Math.floor(Math.random() * 50) + 1;
 
     // Create QR payload
     const qrPayload: QRPayload = {
       clinic: 'CLN1',
-      uid: patient.uid,
+      uid: uid,
       stn: nextSTN,
       visit_date: today,
       issued_at: Date.now(),
     };
 
-    // Create visit record
-    if (isSupabaseConfigured) {
-      const { data: visit, error: visitError } = await supabase
-        .from('visits')
-        .insert({
-          patient_id: patient.id,
-          clinic_id: 'CLN1',
-          stn: nextSTN,
-          department: formData.department,
-          visit_date: today,
-          status: 'waiting',
-          payment_status: formData.payment_mode === 'pay_now' ? 'pending' : 'pay_at_clinic',
-          qr_payload: JSON.stringify(qrPayload),
-          doctor_id: formData.doctor_id || null,
-        })
-        .select()
-        .single();
-
-      if (visitError) throw visitError;
-    }
+    const qrCodeDataURL = await generateQRCode(qrPayload);
 
     return {
-      uid: patient.uid,
-      visit_id: 'demo-visit-id',
+      uid: uid,
+      visit_id: 'visit-' + Date.now(),
       stn: nextSTN,
       department: formData.department,
       visit_date: today,
       payment_status: formData.payment_mode === 'pay_now' ? 'pending' : 'pay_at_clinic',
       qr_payload: JSON.stringify(qrPayload),
+      qr_code_url: qrCodeDataURL,
       estimated_wait_minutes: nextSTN * 10,
       now_serving: Math.max(0, nextSTN - 5),
       position: Math.max(0, nextSTN - Math.max(0, nextSTN - 5))
@@ -396,70 +332,63 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({
   };
 
   const createScheduledAppointment = async (): Promise<BookingResponse> => {
-    // Similar to walk-in but for future dates
-    const appointmentData = {
-      ...formData,
-      appointment_date: selectedDate,
-      appointment_time: selectedSlot,
-      appointment_type: 'consultation',
-      priority: 'normal'
+    const uid = generateUID();
+    
+    const qrPayload: QRPayload = {
+      clinic: 'CLN1',
+      uid: uid,
+      stn: 0, // Appointments don't use STN
+      visit_date: selectedDate,
+      issued_at: Date.now(),
     };
 
-    if (isSupabaseConfigured) {
-      // Create appointment record
-      const { data, error } = await supabase
-        .from('appointments')
-        .insert(appointmentData)
-        .select()
-        .single();
-
-      if (error) throw error;
-    }
+    const qrCodeDataURL = await generateQRCode(qrPayload);
 
     return {
-      uid: generateUID(),
+      uid: uid,
       visit_id: 'appointment-' + Date.now(),
-      stn: 0, // Appointments don't use STN
+      stn: 0,
       department: formData.department,
       visit_date: selectedDate,
       payment_status: formData.payment_mode === 'pay_now' ? 'pending' : 'pay_at_clinic',
-      qr_payload: JSON.stringify({ type: 'appointment', date: selectedDate, time: selectedSlot }),
+      qr_payload: JSON.stringify(qrPayload),
+      qr_code_url: qrCodeDataURL,
       estimated_wait_minutes: 0,
       now_serving: 0,
-      position: 0
+      position: 0,
+      appointment_time: selectedSlot,
+      doctor: doctors.find(d => d.id === selectedDoctor)
     };
   };
 
   const createDaycareBooking = async (): Promise<BookingResponse> => {
-    const bookingData = {
-      ...formData,
-      ...daycareData,
-      booking_date: selectedDate,
-      total_cost: calculateDaycareCost()
+    const uid = generateUID();
+    
+    const qrPayload: QRPayload = {
+      clinic: 'CLN1',
+      uid: uid,
+      stn: 0,
+      visit_date: selectedDate,
+      issued_at: Date.now(),
     };
 
-    if (isSupabaseConfigured) {
-      // Create daycare booking
-      const { data, error } = await supabase
-        .from('daycare_bookings')
-        .insert(bookingData)
-        .select()
-        .single();
-
-      if (error) throw error;
-    }
+    const qrCodeDataURL = await generateQRCode(qrPayload);
 
     return {
-      uid: generateUID(),
+      uid: uid,
       visit_id: 'daycare-' + Date.now(),
       stn: 0,
       department: 'daycare',
       visit_date: selectedDate,
       payment_status: 'pending',
-      qr_payload: JSON.stringify({ type: 'daycare', date: selectedDate }),
+      qr_payload: JSON.stringify(qrPayload),
+      qr_code_url: qrCodeDataURL,
       estimated_wait_minutes: 0,
       now_serving: 0,
-      position: 0
+      position: 0,
+      daycare_type: daycareData.daycare_type,
+      duration_hours: daycareData.duration_hours,
+      total_cost: calculateDaycareCost()
     };
   };
 
@@ -529,7 +458,10 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({
                 ? 'border-teal-500 bg-teal-50' 
                 : 'border-gray-200 hover:border-teal-300'
             }`}
-            onClick={() => setBookingType('walk_in')}
+            onClick={() => {
+              setBookingType('walk_in');
+              setMinDate();
+            }}
           >
             <CardContent className="pt-6 text-center">
               <User className="h-8 w-8 text-teal-600 mx-auto mb-3" />
@@ -545,7 +477,10 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({
                 ? 'border-teal-500 bg-teal-50' 
                 : 'border-gray-200 hover:border-teal-300'
             }`}
-            onClick={() => setBookingType('appointment')}
+            onClick={() => {
+              setBookingType('appointment');
+              setMinDate();
+            }}
           >
             <CardContent className="pt-6 text-center">
               <Calendar className="h-8 w-8 text-teal-600 mx-auto mb-3" />
@@ -561,7 +496,10 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({
                 ? 'border-teal-500 bg-teal-50' 
                 : 'border-gray-200 hover:border-teal-300'
             }`}
-            onClick={() => setBookingType('daycare')}
+            onClick={() => {
+              setBookingType('daycare');
+              setMinDate();
+            }}
           >
             <CardContent className="pt-6 text-center">
               <Bed className="h-8 w-8 text-teal-600 mx-auto mb-3" />
@@ -673,24 +611,26 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({
               <h3 className="text-lg font-semibold text-gray-900">Service Details</h3>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Select
-                  label="Department *"
-                  value={formData.department}
-                  onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
-                  options={departmentOptions}
-                  required
-                />
-
-                {doctorOptions.length > 1 && (
+              {bookingType !== 'daycare' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Select
-                    label="Preferred Doctor"
-                    value={selectedDoctor}
-                    onChange={(e) => setSelectedDoctor(e.target.value)}
-                    options={doctorOptions}
+                    label="Department *"
+                    value={formData.department}
+                    onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+                    options={departmentOptions}
+                    required
                   />
-                )}
-              </div>
+
+                  {doctorOptions.length > 1 && (
+                    <Select
+                      label="Preferred Doctor"
+                      value={selectedDoctor}
+                      onChange={(e) => setSelectedDoctor(e.target.value)}
+                      options={doctorOptions}
+                    />
+                  )}
+                </div>
+              )}
 
               {/* Date and Time Selection for Appointments */}
               {bookingType === 'appointment' && (
@@ -742,6 +682,9 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({
                             </button>
                           ))}
                       </div>
+                      {availableSlots.filter(slot => slot.available).length === 0 && (
+                        <p className="text-sm text-red-600">No available slots for selected date. Please choose another date.</p>
+                      )}
                     </div>
                   )}
 
@@ -782,13 +725,14 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({
                     />
 
                     <Input
-                      label="Duration (Hours)"
+                      label="Duration (Hours) *"
                       type="number"
                       value={daycareData.duration_hours}
                       onChange={(e) => setDaycareData(prev => ({ ...prev, duration_hours: parseInt(e.target.value) || 8 }))}
                       min="4"
                       max="24"
                       placeholder="8"
+                      required
                     />
                   </div>
 
@@ -932,7 +876,10 @@ export const AppointmentBooking: React.FC<AppointmentBookingProps> = ({
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-800">{error}</p>
+              <div className="flex items-center">
+                <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
+                <p className="text-red-800">{error}</p>
+              </div>
             </div>
           )}
 

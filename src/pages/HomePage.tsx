@@ -497,10 +497,6 @@ export const HomePage: React.FC = () => {
                 <Search className="h-4 w-4 mr-2" />
                 Track Appointment
               </Button>
-              <Button variant="outline" onClick={() => window.open('/admin', '_blank')} size="sm">
-                <UserCheck className="h-4 w-4 mr-2" />
-                Admin Portal
-              </Button>
             </div>
           </div>
         </div>
@@ -592,7 +588,7 @@ export const HomePage: React.FC = () => {
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
-                onClick={() => setShowAppointmentModal(true)}
+                onClick={() => setShowBookingModal(true)}
                 size="lg"
                 className="bg-teal-600 hover:bg-teal-700 px-8 py-4 text-lg shadow-lg"
               >
@@ -782,19 +778,14 @@ export const HomePage: React.FC = () => {
 
       {/* Booking Modal */}
       <AppointmentBooking
-        isOpen={showAppointmentModal}
-        onClose={() => setShowAppointmentModal(false)}
+        isOpen={showBookingModal}
+        onClose={() => setShowBookingModal(false)}
         onSuccess={(result) => {
           setBookingResult(result);
+          setQrCodeDataURL(result.qr_code_url || '');
           setShowConfirmationModal(true);
           setSuccess('Service booked successfully!');
         }}
-      />
-
-      {/* Advanced Admin Panel */}
-      <AdvancedAdminPanel
-        isOpen={showAdvancedAdmin}
-        onClose={() => setShowAdvancedAdmin(false)}
       />
 
       {/* Hospital Services Modal */}
