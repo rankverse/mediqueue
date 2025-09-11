@@ -36,8 +36,6 @@ import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { QueueWidget } from '../components/QueueWidget';
 import { Queue2DVisualization } from '../components/Queue2DVisualization';
 import { AppointmentBooking } from '../components/AppointmentBooking';
-import { AdvancedAdminPanel } from '../components/AdvancedAdminPanel';
-import { PatientLookup } from '../components/PatientLookup';
 import { PatientSelfLookup } from '../components/PatientSelfLookup';
 import { useTranslation } from '../lib/translations';
 import { BookingRequest, BookingResponse, DepartmentStats } from '../types';
@@ -48,10 +46,8 @@ import { useRealTimeUpdates } from '../hooks/useRealTimeUpdates';
 
 export const HomePage: React.FC = () => {
   const { t } = useTranslation();
-  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
-  const [showAdvancedAdmin, setShowAdvancedAdmin] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
-  const [showPatientLookup, setShowPatientLookup] = useState(false);
   const [showSelfLookup, setShowSelfLookup] = useState(false);
   const [showInteractiveGuide, setShowInteractiveGuide] = useState(false);
   const [showServicesModal, setShowServicesModal] = useState(false);
@@ -86,7 +82,7 @@ export const HomePage: React.FC = () => {
           {
             department: 'general',
             display_name: 'General Medicine',
-            color_code: '#059669',
+            color_code: '#0d9488',
             now_serving: 5,
             total_waiting: 8,
             total_completed: 12,
@@ -102,6 +98,26 @@ export const HomePage: React.FC = () => {
             total_completed: 8,
             average_wait_time: 20,
             doctor_count: 1
+          },
+          {
+            department: 'orthopedics',
+            display_name: 'Orthopedics',
+            color_code: '#7c3aed',
+            now_serving: 2,
+            total_waiting: 3,
+            total_completed: 6,
+            average_wait_time: 18,
+            doctor_count: 1
+          },
+          {
+            department: 'pediatrics',
+            display_name: 'Pediatrics',
+            color_code: '#ea580c',
+            now_serving: 4,
+            total_waiting: 6,
+            total_completed: 10,
+            average_wait_time: 20,
+            doctor_count: 2
           }
         ]);
         return;
@@ -181,7 +197,7 @@ export const HomePage: React.FC = () => {
           description: 'General medical consultation and treatment',
           consultation_fee: 500,
           average_consultation_time: 15,
-          color_code: '#059669',
+          color_code: '#0d9488',
           is_active: true
         },
         {
@@ -259,153 +275,13 @@ export const HomePage: React.FC = () => {
     }
   };
 
-  const handleBookToken = async (bookingData: BookingRequest) => {
-    setBookingLoading(true);
-    setError('');
-    setSuccess('');
-    
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      
-      // Check if patient exists by phone
-      let { data: existingPatients, error: patientError } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('phone', bookingData.phone)
-        .limit(1);
-
-      if (patientError) throw patientError;
-
-      let patient = existingPatients?.[0];
-      
-      // Create new patient if doesn't exist
-      if (!patient) {
-        const uid = generateUID();
-        
-        const allergies = bookingData.allergies ? 
-          bookingData.allergies.split(',').map(item => item.trim()).filter(Boolean) : 
-          [];
-        const medicalConditions = bookingData.medical_conditions ? 
-          bookingData.medical_conditions.split(',').map(item => item.trim()).filter(Boolean) : 
-          [];
-        
-        const { data: newPatient, error: createPatientError } = await supabase
-          .from('patients')
-          .insert({
-            uid,
-            name: bookingData.name,
-            age: bookingData.age,
-            phone: bookingData.phone,
-            email: bookingData.email || null,
-            address: bookingData.address || null,
-            emergency_contact: bookingData.emergency_contact || null,
-            blood_group: bookingData.blood_group || null,
-            allergies: allergies.length > 0 ? allergies : null,
-            medical_conditions: medicalConditions.length > 0 ? medicalConditions : null,
-          })
-          .select()
-          .single();
-
-        if (createPatientError) throw createPatientError;
-        patient = newPatient;
-      }
-
-      // Get next STN for today and department
-      const { data: existingVisits } = await supabase
-        .from('visits')
-        .select('stn')
-        .eq('visit_date', today)
-        .eq('department', bookingData.department)
-        .order('stn', { ascending: false })
-        .limit(1);
-
-      const nextSTN = (existingVisits?.[0]?.stn || 0) + 1;
-
-      // Create QR payload
-      const qrPayload: QRPayload = {
-        clinic: 'CLN1',
-        uid: patient.uid,
-        stn: nextSTN,
-        visit_date: today,
-        issued_at: Date.now(),
-      };
-
-      const qrCodeData = await generateQRCode(qrPayload);
-      setQrCodeDataURL(qrCodeData);
-
-      // Create visit record
-      const { data: visit, error: visitError } = await supabase
-        .from('visits')
-        .insert({
-          patient_id: patient.id,
-          clinic_id: 'CLN1',
-          stn: nextSTN,
-          department: bookingData.department,
-          visit_date: today,
-          status: 'waiting',
-          payment_status: bookingData.payment_mode === 'pay_now' ? 'pending' : 'pay_at_clinic',
-          qr_payload: JSON.stringify(qrPayload),
-          doctor_id: bookingData.doctor_id || null,
-        })
-        .select()
-        .single();
-
-      if (visitError) throw visitError;
-
-      // Get current queue status
-      const { data: queueData } = await supabase
-        .from('visits')
-        .select('stn, status')
-        .eq('visit_date', today)
-        .eq('department', bookingData.department);
-
-      const inServiceVisits = queueData?.filter(v => v.status === 'in_service') || [];
-      const completedVisits = queueData?.filter(v => v.status === 'completed') || [];
-      
-      let nowServing = 0;
-      if (inServiceVisits.length > 0) {
-        nowServing = Math.min(...inServiceVisits.map(v => v.stn));
-      } else if (completedVisits.length > 0) {
-        nowServing = Math.max(...completedVisits.map(v => v.stn));
-      }
-
-      const position = Math.max(0, nextSTN - nowServing);
-      const estimatedWaitMinutes = position * 10;
-
-      const result: BookingResponse = {
-        uid: patient.uid,
-        visit_id: visit.id,
-        stn: nextSTN,
-        department: bookingData.department,
-        visit_date: today,
-        payment_status: visit.payment_status,
-        qr_payload: visit.qr_payload,
-        estimated_wait_minutes: estimatedWaitMinutes,
-        now_serving: nowServing,
-        position,
-      };
-
-      setBookingResult(result);
-      setShowBookingModal(false);
-      setSuccess('Appointment booked successfully!');
-      setShowConfirmationModal(true);
-
-    } catch (error) {
-      console.error('Booking error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to book appointment. Please try again.';
-      setError(errorMessage);
-    } finally {
-      setBookingLoading(false);
+  const handleDownloadQR = () => {
+    if (!qrCodeDataURL || !bookingResult) {
+      console.warn("QR code not ready yet");
+      return;
     }
+    downloadQRCode(qrCodeDataURL, `clinic-token-${bookingResult.stn || 'appointment'}.png`);
   };
-
- const handleDownloadQR = () => {
-  if (!qrCodeDataURL) {
-    console.warn("QR code not ready yet");
-    return;
-  }
-  downloadQRCode(qrCodeDataURL, `clinic-token-${bookingResult.stn}.png`);
-};
 
   const hospitalServices = [
     {
@@ -869,18 +745,32 @@ export const HomePage: React.FC = () => {
                       <span className="text-gray-600">Patient ID:</span>
                       <span className="font-medium font-mono">{bookingResult.uid}</span>
                     </div>
+                    {bookingResult.stn > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Token Number:</span>
+                        <span className="font-bold text-teal-600 text-xl">#{bookingResult.stn}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Token Number:</span>
-                      <span className="font-bold text-teal-600 text-xl">#{bookingResult.stn}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Department:</span>
-                      <span className="font-medium capitalize">{bookingResult.department}</span>
+                      <span className="text-gray-600">Service Type:</span>
+                      <span className="font-medium capitalize">{bookingResult.service_type || bookingResult.department}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Date:</span>
                       <span className="font-medium">{bookingResult.visit_date}</span>
                     </div>
+                    {bookingResult.appointment_time && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Time:</span>
+                        <span className="font-medium">{bookingResult.appointment_time}</span>
+                      </div>
+                    )}
+                    {bookingResult.total_cost && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Total Cost:</span>
+                        <span className="font-bold text-green-600">₹{bookingResult.total_cost}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-gray-600">Payment Status:</span>
                       <span className={`font-medium px-2 py-1 rounded text-xs ${
@@ -894,23 +784,25 @@ export const HomePage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-teal-50 rounded-lg p-4 border border-teal-200">
-                  <h4 className="font-semibold text-teal-900 mb-3">Queue Information</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-teal-700">Currently Serving:</span>
-                      <span className="font-bold text-teal-900">#{bookingResult.now_serving}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-teal-700">Your Position:</span>
-                      <span className="font-bold text-teal-900">#{bookingResult.position}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-teal-700">Estimated Wait:</span>
-                      <span className="font-bold text-teal-900">{bookingResult.estimated_wait_minutes} minutes</span>
+                {bookingResult.stn > 0 && (
+                  <div className="bg-teal-50 rounded-lg p-4 border border-teal-200">
+                    <h4 className="font-semibold text-teal-900 mb-3">Queue Information</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-teal-700">Currently Serving:</span>
+                        <span className="font-bold text-teal-900">#{bookingResult.now_serving}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-teal-700">Your Position:</span>
+                        <span className="font-bold text-teal-900">#{bookingResult.position}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-teal-700">Estimated Wait:</span>
+                        <span className="font-bold text-teal-900">{bookingResult.estimated_wait_minutes} minutes</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="text-center">
@@ -970,12 +862,6 @@ export const HomePage: React.FC = () => {
       <PatientSelfLookup
         isOpen={showSelfLookup}
         onClose={() => setShowSelfLookup(false)}
-      />
-
-      {/* Admin Patient Lookup Modal */}
-      <PatientLookup
-        isOpen={showPatientLookup}
-        onClose={() => setShowPatientLookup(false)}
       />
 
       {/* Interactive Guide Modal */}

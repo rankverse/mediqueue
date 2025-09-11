@@ -4,14 +4,15 @@
 
 /* Medical theme color overrides */
 :root {
-  --medical-primary: #0f766e;
-  --medical-secondary: #0d9488;
+  --medical-primary: #0d9488;
+  --medical-secondary: #0f766e;
   --medical-accent: #14b8a6;
   --medical-warning: #f59e0b;
   --medical-error: #dc2626;
-  --medical-success: #0d9488;
+  --medical-success: #059669;
   --medical-neutral: #64748b;
   --medical-light: #f0fdfa;
+  --medical-dark: #134e4a;
 }
 
 /* Ensure proper button styling */
@@ -64,15 +65,15 @@
   }
   
   .medical-button-primary {
-    @apply bg-teal-600 hover:bg-teal-700 text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md;
+    @apply bg-teal-600 hover:bg-teal-700 text-white font-medium px-4 py-2 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-0.5;
   }
   
   .medical-button-secondary {
-    @apply bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200;
+    @apply bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 rounded-lg transition-all duration-200 transform hover:-translate-y-0.5;
   }
   
   .medical-input {
-    @apply border-slate-300 focus:border-teal-500 focus:ring-teal-500 rounded-lg;
+    @apply border-slate-300 focus:border-teal-500 focus:ring-teal-500 rounded-lg transition-all duration-200;
   }
   
   .medical-status-waiting {
@@ -89,6 +90,21 @@
   
   .medical-status-urgent {
     @apply bg-red-50 text-red-800 border-red-200;
+  }
+  
+  .medical-card-hover {
+    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+  }
+  
+  .medical-gradient-bg {
+    background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
+  }
+  
+  .medical-text-gradient {
+    background: linear-gradient(135deg, #0d9488 0%, #059669 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }
 

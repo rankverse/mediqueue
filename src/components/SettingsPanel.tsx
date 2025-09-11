@@ -181,6 +181,84 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
         setting_value: 50,
         setting_type: 'general',
         description: 'Minimum advance payment percentage for admissions'
+      },
+      {
+        setting_key: 'appointment_slot_duration',
+        setting_value: 30,
+        setting_type: 'general',
+        description: 'Appointment slot duration in minutes'
+      },
+      {
+        setting_key: 'max_advance_booking_days',
+        setting_value: 30,
+        setting_type: 'general',
+        description: 'Maximum days in advance for appointment booking'
+      },
+      {
+        setting_key: 'daycare_observation_rate',
+        setting_value: 2000,
+        setting_type: 'general',
+        description: 'Day care observation rate per day'
+      },
+      {
+        setting_key: 'daycare_recovery_rate',
+        setting_value: 3000,
+        setting_type: 'general',
+        description: 'Day care recovery rate per day'
+      },
+      {
+        setting_key: 'daycare_dialysis_rate',
+        setting_value: 4000,
+        setting_type: 'general',
+        description: 'Day care dialysis rate per day'
+      },
+      {
+        setting_key: 'daycare_chemotherapy_rate',
+        setting_value: 5000,
+        setting_type: 'general',
+        description: 'Day care chemotherapy rate per day'
+      },
+      {
+        setting_key: 'daycare_physiotherapy_rate',
+        setting_value: 1500,
+        setting_type: 'general',
+        description: 'Day care physiotherapy rate per day'
+      },
+      {
+        setting_key: 'pharmacy_tax_rate',
+        setting_value: 5,
+        setting_type: 'payment',
+        description: 'Pharmacy tax rate percentage'
+      },
+      {
+        setting_key: 'max_discount_percentage',
+        setting_value: 20,
+        setting_type: 'payment',
+        description: 'Maximum discount percentage allowed'
+      },
+      {
+        setting_key: 'room_cleaning_fee',
+        setting_value: 200,
+        setting_type: 'general',
+        description: 'Room cleaning service fee'
+      },
+      {
+        setting_key: 'emergency_consultation_fee',
+        setting_value: 1000,
+        setting_type: 'general',
+        description: 'Emergency consultation fee'
+      },
+      {
+        setting_key: 'lab_test_discount',
+        setting_value: 10,
+        setting_type: 'payment',
+        description: 'Lab test discount percentage for regular patients'
+      },
+      {
+        setting_key: 'prescription_validity_days',
+        setting_value: 30,
+        setting_type: 'general',
+        description: 'Prescription validity in days'
       }
     ];
 

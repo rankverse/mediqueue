@@ -28,6 +28,7 @@ import { PatientDetailModal } from '../components/PatientDetailModal';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { PharmacyManagement } from '../components/PharmacyManagement';
 import { AdmissionManagement } from '../components/AdmissionManagement';
+import { RoomManagement } from '../components/RoomManagement';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { useAuth } from '../hooks/useAuth';
 import { useQueue } from '../hooks/useQueue';
@@ -38,6 +39,7 @@ import { supabase } from '../lib/supabase';
 import { Visit, Patient, PaymentTransaction } from '../types';
 import { formatTime, formatRelativeTime, getStatusColor, getPaymentStatusColor } from '../lib/utils';
 import { QRPayload, parseQRCode } from '../lib/qr';
+import { Building2 } from 'lucide-react';
 
 export const AdminPage: React.FC = () => {
   const { t } = useTranslation();
@@ -52,6 +54,7 @@ export const AdminPage: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showPharmacy, setShowPharmacy] = useState(false);
   const [showAdmission, setShowAdmission] = useState(false);
+  const [showRoomManagement, setShowRoomManagement] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [showVisitModal, setShowVisitModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -479,6 +482,14 @@ export const AdminPage: React.FC = () => {
                 <Bed className="mr-2 h-4 w-4" />
                 Admissions
               </Button>
+              <Button 
+                onClick={() => setShowRoomManagement(true)}
+                variant="outline"
+                size="sm"
+              >
+                <Building2 className="mr-2 h-4 w-4" />
+                Rooms
+              </Button>
               <Button variant="outline" onClick={() => signOut()} size="sm">
                 <LogOut className="mr-2 h-4 w-4" />
                 {t('sign_out')}
@@ -890,6 +901,11 @@ export const AdminPage: React.FC = () => {
         onClose={() => setShowAdmission(false)}
         patientId={selectedVisit?.patient_id}
         visitId={selectedVisit?.id}
+      />
+
+      <RoomManagement
+        isOpen={showRoomManagement}
+        onClose={() => setShowRoomManagement(false)}
       />
 
       {/* Advanced Admin Panel */}
