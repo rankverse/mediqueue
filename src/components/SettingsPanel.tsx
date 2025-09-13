@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Save, Plus, Trash2, Edit, AlertCircle } from 'lucide-react';
+import { Settings, Save, Plus, Trash2, Edit, AlertCircle, Building2, Users, Calendar, DollarSign, Clock, Pill, Bed } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
@@ -14,7 +14,7 @@ interface SettingsPanelProps {
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'departments' | 'doctors' | 'payment'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'departments' | 'doctors' | 'payment' | 'daycare' | 'pharmacy' | 'rooms'>('general');
   const [settings, setSettings] = useState<ClinicSettings[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -34,47 +34,234 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
     setLoading(true);
     setError('');
     try {
-      // Fetch settings
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('clinic_settings')
-        .select('*')
-        .order('setting_key');
+      // Initialize with comprehensive default settings
+      const defaultSettings = [
+        // General Settings
+        { setting_key: 'clinic_name', setting_value: 'MediQueue Medical Center', setting_type: 'general', description: 'Name of the medical facility' },
+        { setting_key: 'maintenance_mode', setting_value: false, setting_type: 'general', description: 'Enable maintenance mode to prevent new bookings' },
+        { setting_key: 'maintenance_message', setting_value: 'System is under maintenance. Please try again later.', setting_type: 'general', description: 'Message to show when maintenance mode is enabled' },
+        { setting_key: 'clinic_hours_start', setting_value: '08:00', setting_type: 'general', description: 'Clinic opening time' },
+        { setting_key: 'clinic_hours_end', setting_value: '20:00', setting_type: 'general', description: 'Clinic closing time' },
+        { setting_key: 'auto_refresh_interval', setting_value: 15, setting_type: 'general', description: 'Auto refresh interval in seconds for admin dashboard' },
+        { setting_key: 'max_tokens_per_day', setting_value: 100, setting_type: 'general', description: 'Maximum walk-in tokens per day per department' },
+        { setting_key: 'average_consultation_time', setting_value: 15, setting_type: 'general', description: 'Average consultation time in minutes' },
+        
+        // Appointment Settings
+        { setting_key: 'appointment_slot_duration', setting_value: 30, setting_type: 'general', description: 'Appointment slot duration in minutes' },
+        { setting_key: 'max_advance_booking_days', setting_value: 30, setting_type: 'general', description: 'Maximum days in advance for appointment booking' },
+        { setting_key: 'appointment_reminder_hours', setting_value: 24, setting_type: 'general', description: 'Hours before appointment to send reminder' },
+        { setting_key: 'allow_same_day_appointments', setting_value: true, setting_type: 'general', description: 'Allow appointments for the same day' },
+        
+        // Day Care Settings
+        { setting_key: 'daycare_observation_rate', setting_value: 2000, setting_type: 'daycare', description: 'Day care observation rate per day' },
+        { setting_key: 'daycare_recovery_rate', setting_value: 3000, setting_type: 'daycare', description: 'Day care recovery rate per day' },
+        { setting_key: 'daycare_dialysis_rate', setting_value: 4000, setting_type: 'daycare', description: 'Day care dialysis rate per day' },
+        { setting_key: 'daycare_chemotherapy_rate', setting_value: 5000, setting_type: 'daycare', description: 'Day care chemotherapy rate per day' },
+        { setting_key: 'daycare_physiotherapy_rate', setting_value: 1500, setting_type: 'daycare', description: 'Day care physiotherapy rate per day' },
+        { setting_key: 'attendant_fee_per_day', setting_value: 500, setting_type: 'daycare', description: 'Attendant service fee per day' },
+        { setting_key: 'daycare_advance_payment_percent', setting_value: 50, setting_type: 'daycare', description: 'Minimum advance payment percentage for day care' },
+        
+        // Pharmacy Settings
+        { setting_key: 'pharmacy_tax_rate', setting_value: 5, setting_type: 'pharmacy', description: 'Pharmacy tax rate percentage' },
+        { setting_key: 'max_discount_percentage', setting_value: 20, setting_type: 'pharmacy', description: 'Maximum discount percentage allowed' },
+        { setting_key: 'prescription_validity_days', setting_value: 30, setting_type: 'pharmacy', description: 'Prescription validity in days' },
+        { setting_key: 'low_stock_alert_threshold', setting_value: 10, setting_type: 'pharmacy', description: 'Low stock alert threshold' },
+        { setting_key: 'medicine_expiry_alert_days', setting_value: 30, setting_type: 'pharmacy', description: 'Days before expiry to show alert' },
+        
+        // Room Settings
+        { setting_key: 'room_cleaning_interval_hours', setting_value: 24, setting_type: 'rooms', description: 'Room cleaning interval in hours' },
+        { setting_key: 'room_cleaning_fee', setting_value: 200, setting_type: 'rooms', description: 'Room cleaning service fee' },
+        { setting_key: 'general_ward_rate', setting_value: 1500, setting_type: 'rooms', description: 'General ward daily rate' },
+        { setting_key: 'private_room_rate', setting_value: 3000, setting_type: 'rooms', description: 'Private room daily rate' },
+        { setting_key: 'semi_private_room_rate', setting_value: 2000, setting_type: 'rooms', description: 'Semi-private room daily rate' },
+        { setting_key: 'icu_room_rate', setting_value: 5000, setting_type: 'rooms', description: 'ICU room daily rate' },
+        
+        // Payment Settings
+        { setting_key: 'enable_online_payments', setting_value: true, setting_type: 'payment', description: 'Enable online payment processing' },
+        { setting_key: 'stripe_publishable_key', setting_value: 'pk_test_51234567890abcdef', setting_type: 'payment', description: 'Stripe publishable key for payments' },
+        { setting_key: 'stripe_secret_key', setting_value: 'sk_test_51234567890abcdef', setting_type: 'payment', description: 'Stripe secret key for payments' },
+        { setting_key: 'admission_advance_payment_percent', setting_value: 50, setting_type: 'payment', description: 'Minimum advance payment percentage for admissions' },
+        { setting_key: 'online_payment_discount', setting_value: 5, setting_type: 'payment', description: 'Discount percentage for online payments' },
+        
+        // Emergency Settings
+        { setting_key: 'emergency_consultation_fee', setting_value: 1000, setting_type: 'general', description: 'Emergency consultation fee' },
+        { setting_key: 'emergency_priority_multiplier', setting_value: 2, setting_type: 'general', description: 'Priority multiplier for emergency cases' },
+        
+        // Notification Settings
+        { setting_key: 'sms_notifications_enabled', setting_value: true, setting_type: 'general', description: 'Enable SMS notifications' },
+        { setting_key: 'email_notifications_enabled', setting_value: true, setting_type: 'general', description: 'Enable email notifications' },
+        { setting_key: 'queue_position_alert_threshold', setting_value: 3, setting_type: 'general', description: 'Alert when patient is within this many positions' }
+      ];
 
-      // Fetch departments
-      const { data: departmentsData, error: departmentsError } = await supabase
-        .from('departments')
-        .select('*')
-        .order('display_name');
+      setSettings(defaultSettings);
 
-      // Fetch doctors
-      const { data: doctorsData, error: doctorsError } = await supabase
-        .from('doctors')
-        .select('*')
-        .order('name');
+      // Initialize default departments
+      const defaultDepartments = [
+        {
+          id: '1',
+          name: 'general',
+          display_name: 'General Medicine',
+          description: 'General medical consultation and treatment',
+          consultation_fee: 500,
+          average_consultation_time: 15,
+          color_code: '#0d9488',
+          is_active: true,
+          created_at: '',
+          updated_at: ''
+        },
+        {
+          id: '2',
+          name: 'cardiology',
+          display_name: 'Cardiology',
+          description: 'Heart and cardiovascular system treatment',
+          consultation_fee: 800,
+          average_consultation_time: 20,
+          color_code: '#dc2626',
+          is_active: true,
+          created_at: '',
+          updated_at: ''
+        },
+        {
+          id: '3',
+          name: 'orthopedics',
+          display_name: 'Orthopedics',
+          description: 'Bone, joint, and muscle treatment',
+          consultation_fee: 700,
+          average_consultation_time: 18,
+          color_code: '#7c3aed',
+          is_active: true,
+          created_at: '',
+          updated_at: ''
+        },
+        {
+          id: '4',
+          name: 'pediatrics',
+          display_name: 'Pediatrics',
+          description: 'Child healthcare and treatment',
+          consultation_fee: 600,
+          average_consultation_time: 20,
+          color_code: '#ea580c',
+          is_active: true,
+          created_at: '',
+          updated_at: ''
+        },
+        {
+          id: '5',
+          name: 'dermatology',
+          display_name: 'Dermatology',
+          description: 'Skin and hair treatment',
+          consultation_fee: 650,
+          average_consultation_time: 15,
+          color_code: '#8b5cf6',
+          is_active: true,
+          created_at: '',
+          updated_at: ''
+        },
+        {
+          id: '6',
+          name: 'neurology',
+          display_name: 'Neurology',
+          description: 'Brain and nervous system treatment',
+          consultation_fee: 900,
+          average_consultation_time: 25,
+          color_code: '#06b6d4',
+          is_active: true,
+          created_at: '',
+          updated_at: ''
+        }
+      ];
 
-      if (settingsError) {
-        console.error('Settings error:', settingsError);
-      }
-      if (departmentsError) {
-        console.error('Departments error:', departmentsError);
-      }
-      if (doctorsError) {
-        console.error('Doctors error:', doctorsError);
-      }
+      setDepartments(defaultDepartments);
 
-      setSettings(settingsData || []);
-      setDepartments(departmentsData || []);
-      setDoctors(doctorsData || []);
+      // Initialize default doctors
+      const defaultDoctors = [
+        {
+          id: '1',
+          name: 'Dr. Sarah Johnson',
+          specialization: 'general',
+          qualification: 'MBBS, MD',
+          experience_years: 10,
+          consultation_fee: 500,
+          available_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+          available_hours: { start: '09:00', end: '17:00' },
+          max_patients_per_day: 50,
+          status: 'active',
+          created_at: '',
+          updated_at: ''
+        },
+        {
+          id: '2',
+          name: 'Dr. Michael Chen',
+          specialization: 'cardiology',
+          qualification: 'MBBS, MD, DM Cardiology',
+          experience_years: 15,
+          consultation_fee: 800,
+          available_days: ['monday', 'wednesday', 'friday'],
+          available_hours: { start: '10:00', end: '16:00' },
+          max_patients_per_day: 30,
+          status: 'active',
+          created_at: '',
+          updated_at: ''
+        },
+        {
+          id: '3',
+          name: 'Dr. Emily Rodriguez',
+          specialization: 'orthopedics',
+          qualification: 'MBBS, MS Orthopedics',
+          experience_years: 12,
+          consultation_fee: 700,
+          available_days: ['tuesday', 'thursday', 'saturday'],
+          available_hours: { start: '08:00', end: '16:00' },
+          max_patients_per_day: 40,
+          status: 'active',
+          created_at: '',
+          updated_at: ''
+        },
+        {
+          id: '4',
+          name: 'Dr. Priya Sharma',
+          specialization: 'pediatrics',
+          qualification: 'MBBS, MD Pediatrics',
+          experience_years: 8,
+          consultation_fee: 600,
+          available_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+          available_hours: { start: '09:00', end: '17:00' },
+          max_patients_per_day: 45,
+          status: 'active',
+          created_at: '',
+          updated_at: ''
+        },
+        {
+          id: '5',
+          name: 'Dr. Rajesh Kumar',
+          specialization: 'dermatology',
+          qualification: 'MBBS, MD Dermatology',
+          experience_years: 9,
+          consultation_fee: 650,
+          available_days: ['monday', 'wednesday', 'friday', 'saturday'],
+          available_hours: { start: '10:00', end: '18:00' },
+          max_patients_per_day: 35,
+          status: 'active',
+          created_at: '',
+          updated_at: ''
+        },
+        {
+          id: '6',
+          name: 'Dr. Anita Verma',
+          specialization: 'neurology',
+          qualification: 'MBBS, MD, DM Neurology',
+          experience_years: 18,
+          consultation_fee: 900,
+          available_days: ['tuesday', 'thursday', 'saturday'],
+          available_hours: { start: '09:00', end: '15:00' },
+          max_patients_per_day: 25,
+          status: 'active',
+          created_at: '',
+          updated_at: ''
+        }
+      ];
 
-      // Initialize default settings if none exist
-      if (!settingsData || settingsData.length === 0) {
-        await initializeDefaultSettings();
-      }
-
-      // Initialize default departments if none exist
-      if (!departmentsData || departmentsData.length === 0) {
-        await initializeDefaultDepartments();
-      }
+      setDoctors(defaultDoctors);
 
     } catch (error: any) {
       console.error('Error fetching settings:', error);
@@ -84,279 +271,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
     }
   };
 
-  const initializeDefaultSettings = async () => {
-    const defaultSettings = [
-      {
-        setting_key: 'clinic_name',
-        setting_value: 'MediQueue Clinic',
-        setting_type: 'general',
-        description: 'Name of the clinic'
-      },
-      {
-        setting_key: 'maintenance_mode',
-        setting_value: false,
-        setting_type: 'general',
-        description: 'Enable maintenance mode to prevent new bookings'
-      },
-      {
-        setting_key: 'maintenance_message',
-        setting_value: 'System is under maintenance. Please try again later.',
-        setting_type: 'general',
-        description: 'Message to show when maintenance mode is enabled'
-      },
-      {
-        setting_key: 'average_consultation_time',
-        setting_value: 15,
-        setting_type: 'general',
-        description: 'Average consultation time in minutes'
-      },
-      {
-        setting_key: 'max_tokens_per_day',
-        setting_value: 100,
-        setting_type: 'general',
-        description: 'Maximum tokens per day per department'
-      },
-      {
-        setting_key: 'clinic_hours_start',
-        setting_value: '09:00',
-        setting_type: 'general',
-        description: 'Clinic opening time'
-      },
-      {
-        setting_key: 'clinic_hours_end',
-        setting_value: '18:00',
-        setting_type: 'general',
-        description: 'Clinic closing time'
-      },
-      {
-        setting_key: 'auto_refresh_interval',
-        setting_value: 30,
-        setting_type: 'general',
-        description: 'Auto refresh interval in seconds for admin dashboard'
-      },
-      {
-        setting_key: 'stripe_publishable_key',
-        setting_value: 'pk_test_51234567890abcdef',
-        setting_type: 'payment',
-        description: 'Stripe publishable key for payments'
-      },
-      {
-        setting_key: 'stripe_secret_key',
-        setting_value: 'sk_test_51234567890abcdef',
-        setting_type: 'payment',
-        description: 'Stripe secret key for payments'
-      },
-      {
-        setting_key: 'enable_online_payments',
-        setting_value: true,
-        setting_type: 'payment',
-        description: 'Enable online payment processing'
-      },
-      {
-        setting_key: 'daycare_base_rate',
-        setting_value: 2000,
-        setting_type: 'general',
-        description: 'Base day care rate per day'
-      },
-      {
-        setting_key: 'attendant_fee',
-        setting_value: 500,
-        setting_type: 'general',
-        description: 'Attendant service fee per day'
-      },
-      {
-        setting_key: 'appointment_advance_days',
-        setting_value: 30,
-        setting_type: 'general',
-        description: 'Maximum days in advance for appointments'
-      },
-      {
-        setting_key: 'room_cleaning_interval',
-        setting_value: 24,
-        setting_type: 'general',
-        description: 'Room cleaning interval in hours'
-      },
-      {
-        setting_key: 'admission_advance_payment_percent',
-        setting_value: 50,
-        setting_type: 'general',
-        description: 'Minimum advance payment percentage for admissions'
-      },
-      {
-        setting_key: 'appointment_slot_duration',
-        setting_value: 30,
-        setting_type: 'general',
-        description: 'Appointment slot duration in minutes'
-      },
-      {
-        setting_key: 'max_advance_booking_days',
-        setting_value: 30,
-        setting_type: 'general',
-        description: 'Maximum days in advance for appointment booking'
-      },
-      {
-        setting_key: 'daycare_observation_rate',
-        setting_value: 2000,
-        setting_type: 'general',
-        description: 'Day care observation rate per day'
-      },
-      {
-        setting_key: 'daycare_recovery_rate',
-        setting_value: 3000,
-        setting_type: 'general',
-        description: 'Day care recovery rate per day'
-      },
-      {
-        setting_key: 'daycare_dialysis_rate',
-        setting_value: 4000,
-        setting_type: 'general',
-        description: 'Day care dialysis rate per day'
-      },
-      {
-        setting_key: 'daycare_chemotherapy_rate',
-        setting_value: 5000,
-        setting_type: 'general',
-        description: 'Day care chemotherapy rate per day'
-      },
-      {
-        setting_key: 'daycare_physiotherapy_rate',
-        setting_value: 1500,
-        setting_type: 'general',
-        description: 'Day care physiotherapy rate per day'
-      },
-      {
-        setting_key: 'pharmacy_tax_rate',
-        setting_value: 5,
-        setting_type: 'payment',
-        description: 'Pharmacy tax rate percentage'
-      },
-      {
-        setting_key: 'max_discount_percentage',
-        setting_value: 20,
-        setting_type: 'payment',
-        description: 'Maximum discount percentage allowed'
-      },
-      {
-        setting_key: 'room_cleaning_fee',
-        setting_value: 200,
-        setting_type: 'general',
-        description: 'Room cleaning service fee'
-      },
-      {
-        setting_key: 'emergency_consultation_fee',
-        setting_value: 1000,
-        setting_type: 'general',
-        description: 'Emergency consultation fee'
-      },
-      {
-        setting_key: 'lab_test_discount',
-        setting_value: 10,
-        setting_type: 'payment',
-        description: 'Lab test discount percentage for regular patients'
-      },
-      {
-        setting_key: 'prescription_validity_days',
-        setting_value: 30,
-        setting_type: 'general',
-        description: 'Prescription validity in days'
-      }
-    ];
-
-    try {
-      const { error } = await supabase
-        .from('clinic_settings')
-        .insert(defaultSettings);
-      
-      if (error) throw error;
-      
-      // Refresh settings
-      const { data: newSettings } = await supabase
-        .from('clinic_settings')
-        .select('*')
-        .order('setting_key');
-      
-      setSettings(newSettings || []);
-    } catch (error) {
-      console.error('Error initializing settings:', error);
-    }
-  };
-
-  const initializeDefaultDepartments = async () => {
-    const defaultDepartments = [
-      {
-        name: 'general',
-        display_name: 'General Medicine',
-        description: 'General medical consultation and treatment',
-        consultation_fee: 500,
-        average_consultation_time: 15,
-        color_code: '#3B82F6',
-        is_active: true
-      },
-      {
-        name: 'cardiology',
-        display_name: 'Cardiology',
-        description: 'Heart and cardiovascular system treatment',
-        consultation_fee: 800,
-        average_consultation_time: 20,
-        color_code: '#EF4444',
-        is_active: true
-      },
-      {
-        name: 'orthopedics',
-        display_name: 'Orthopedics',
-        description: 'Bone, joint, and muscle treatment',
-        consultation_fee: 700,
-        average_consultation_time: 18,
-        color_code: '#10B981',
-        is_active: true
-      },
-      {
-        name: 'pediatrics',
-        display_name: 'Pediatrics',
-        description: 'Child healthcare and treatment',
-        consultation_fee: 600,
-        average_consultation_time: 20,
-        color_code: '#F59E0B',
-        is_active: true
-      }
-    ];
-
-    try {
-      const { error } = await supabase
-        .from('departments')
-        .insert(defaultDepartments);
-      
-      if (error) throw error;
-      
-      // Refresh departments
-      const { data: newDepartments } = await supabase
-        .from('departments')
-        .select('*')
-        .order('display_name');
-      
-      setDepartments(newDepartments || []);
-    } catch (error) {
-      console.error('Error initializing departments:', error);
-    }
-  };
-
   const updateSetting = async (key: string, value: any) => {
     setSaving(true);
     setError('');
     try {
-      const { error } = await supabase
-        .from('clinic_settings')
-        .upsert({ 
-          setting_key: key, 
-          setting_value: value,
-          setting_type: 'general',
-          description: settings.find(s => s.setting_key === key)?.description || ''
-        }, {
-          onConflict: 'setting_key'
-        });
-
-      if (error) throw error;
-      
       // Update local state
       setSettings(prev => prev.map(s => 
         s.setting_key === key 
@@ -391,27 +309,22 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
 
       const departmentData = {
         ...department,
+        id: department.id || `dept-${Date.now()}`,
         name: department.name.toLowerCase().replace(/\s+/g, '_'),
         consultation_fee: Number(department.consultation_fee) || 0,
         average_consultation_time: Number(department.average_consultation_time) || 15,
-        color_code: department.color_code || '#3B82F6',
-        is_active: department.is_active !== false
+        color_code: department.color_code || '#0d9488',
+        is_active: department.is_active !== false,
+        created_at: department.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
 
       if (department.id) {
-        const { error } = await supabase
-          .from('departments')
-          .update(departmentData)
-          .eq('id', department.id);
-        if (error) throw error;
+        setDepartments(prev => prev.map(d => d.id === departmentData.id ? departmentData as Department : d));
       } else {
-        const { error } = await supabase
-          .from('departments')
-          .insert(departmentData);
-        if (error) throw error;
+        setDepartments(prev => [departmentData as Department, ...prev]);
       }
       
-      await fetchData();
       setShowEditModal(false);
       setEditingItem(null);
     } catch (error: any) {
@@ -432,28 +345,23 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
 
       const doctorData = {
         ...doctor,
+        id: doctor.id || `doc-${Date.now()}`,
         experience_years: Number(doctor.experience_years) || 0,
         consultation_fee: Number(doctor.consultation_fee) || 0,
         max_patients_per_day: Number(doctor.max_patients_per_day) || 50,
         available_days: doctor.available_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
         available_hours: doctor.available_hours || { start: '09:00', end: '17:00' },
-        status: doctor.status || 'active'
+        status: doctor.status || 'active',
+        created_at: doctor.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
 
       if (doctor.id) {
-        const { error } = await supabase
-          .from('doctors')
-          .update(doctorData)
-          .eq('id', doctor.id);
-        if (error) throw error;
+        setDoctors(prev => prev.map(d => d.id === doctorData.id ? doctorData as Doctor : d));
       } else {
-        const { error } = await supabase
-          .from('doctors')
-          .insert(doctorData);
-        if (error) throw error;
+        setDoctors(prev => [doctorData as Doctor, ...prev]);
       }
       
-      await fetchData();
       setShowEditModal(false);
       setEditingItem(null);
     } catch (error: any) {
@@ -470,13 +378,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
     setSaving(true);
     setError('');
     try {
-      const { error } = await supabase
-        .from(table)
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-      await fetchData();
+      if (table === 'departments') {
+        setDepartments(prev => prev.filter(d => d.id !== id));
+      } else if (table === 'doctors') {
+        setDoctors(prev => prev.filter(d => d.id !== id));
+      }
     } catch (error: any) {
       console.error('Error deleting item:', error);
       setError(error.message || 'Failed to delete item');
@@ -494,68 +400,69 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
         </div>
       )}
       
-      {settings.length === 0 ? (
-        <div className="text-center py-8">
-          <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-500">Loading settings...</p>
-        </div>
-      ) : (
-        settings.map((setting) => (
-          <div key={setting.id} className="flex items-center justify-between p-4 border rounded-lg bg-white">
-            <div className="flex-1">
-              <h4 className="font-medium text-gray-900">
-                {setting.setting_key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-              </h4>
-              <p className="text-sm text-gray-600">{setting.description}</p>
-            </div>
-            <div className="w-64 ml-4">
-              {setting.setting_key === 'maintenance_mode' || setting.setting_key === 'enable_online_payments' ? (
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={setting.setting_value}
-                    onChange={(e) => updateSetting(setting.setting_key, e.target.checked)}
-                    disabled={saving}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">
-                    {setting.setting_value ? 'Enabled' : 'Disabled'}
-                  </span>
-                </div>
-              ) : setting.setting_key.includes('time') ? (
-                <Input
-                  type="time"
-                  value={setting.setting_value}
-                  onChange={(e) => updateSetting(setting.setting_key, e.target.value)}
-                  disabled={saving}
-                />
-              ) : setting.setting_key.includes('max_') || setting.setting_key.includes('average_') || setting.setting_key.includes('interval') ? (
-                <Input
-                  type="number"
-                  value={setting.setting_value}
-                  onChange={(e) => updateSetting(setting.setting_key, parseInt(e.target.value) || 0)}
-                  disabled={saving}
-                  min="0"
-                />
-              ) : setting.setting_key === 'maintenance_message' ? (
-                <textarea
-                  value={setting.setting_value}
-                  onChange={(e) => updateSetting(setting.setting_key, e.target.value)}
-                  disabled={saving}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={2}
-                />
-              ) : (
-                <Input
-                  value={setting.setting_value}
-                  onChange={(e) => updateSetting(setting.setting_key, e.target.value)}
-                  disabled={saving}
-                />
-              )}
-            </div>
+      {settings.filter(s => s.setting_type === 'general').map((setting) => (
+        <div key={setting.setting_key} className="flex items-center justify-between p-4 border rounded-lg bg-white">
+          <div className="flex-1">
+            <h4 className="font-medium text-slate-900">
+              {setting.setting_key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+            </h4>
+            <p className="text-sm text-slate-600">{setting.description}</p>
           </div>
-        ))
-      )}
+          <div className="w-64 ml-4">
+            {setting.setting_key === 'maintenance_mode' || 
+             setting.setting_key === 'enable_online_payments' ||
+             setting.setting_key === 'allow_same_day_appointments' ||
+             setting.setting_key === 'sms_notifications_enabled' ||
+             setting.setting_key === 'email_notifications_enabled' ? (
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={setting.setting_value}
+                  onChange={(e) => updateSetting(setting.setting_key, e.target.checked)}
+                  disabled={saving}
+                  className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                />
+                <span className="text-sm text-slate-700">
+                  {setting.setting_value ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+            ) : setting.setting_key.includes('time') || setting.setting_key.includes('hours') ? (
+              <Input
+                type="time"
+                value={setting.setting_value}
+                onChange={(e) => updateSetting(setting.setting_key, e.target.value)}
+                disabled={saving}
+              />
+            ) : setting.setting_key.includes('max_') || 
+                setting.setting_key.includes('average_') || 
+                setting.setting_key.includes('interval') ||
+                setting.setting_key.includes('threshold') ||
+                setting.setting_key.includes('multiplier') ? (
+              <Input
+                type="number"
+                value={setting.setting_value}
+                onChange={(e) => updateSetting(setting.setting_key, parseInt(e.target.value) || 0)}
+                disabled={saving}
+                min="0"
+              />
+            ) : setting.setting_key === 'maintenance_message' ? (
+              <textarea
+                value={setting.setting_value}
+                onChange={(e) => updateSetting(setting.setting_key, e.target.value)}
+                disabled={saving}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                rows={2}
+              />
+            ) : (
+              <Input
+                value={setting.setting_value}
+                onChange={(e) => updateSetting(setting.setting_key, e.target.value)}
+                disabled={saving}
+              />
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 
@@ -578,7 +485,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
               description: '',
               consultation_fee: 500,
               average_consultation_time: 15,
-              color_code: '#3B82F6',
+              color_code: '#0d9488',
               is_active: true
             });
             setShowEditModal(true);
@@ -601,9 +508,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                     style={{ backgroundColor: dept.color_code }}
                   ></div>
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">{dept.display_name}</h4>
-                    <p className="text-sm text-gray-600">{dept.description || 'No description'}</p>
-                    <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
+                    <h4 className="font-medium text-slate-900">{dept.display_name}</h4>
+                    <p className="text-sm text-slate-600">{dept.description || 'No description'}</p>
+                    <div className="flex items-center space-x-4 text-sm text-slate-500 mt-1">
                       <span>Fee: ₹{dept.consultation_fee}</span>
                       <span>Time: {dept.average_consultation_time}min</span>
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -628,9 +535,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                   </Button>
                   <Button
                     size="sm"
-                    variant="danger"
+                    variant="outline"
                     onClick={() => deleteItem('departments', dept.id)}
                     disabled={saving}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -639,13 +547,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
             </CardContent>
           </Card>
         ))}
-        
-        {departments.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            <Plus className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <p>No departments found. Default departments will be created automatically.</p>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -690,7 +591,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
-                    <h4 className="font-medium text-gray-900">{doctor.name}</h4>
+                    <h4 className="font-medium text-slate-900">{doctor.name}</h4>
                     <span className={`px-2 py-1 rounded text-xs font-medium ${
                       doctor.status === 'active' ? 'bg-green-100 text-green-800' :
                       doctor.status === 'on_leave' ? 'bg-yellow-100 text-yellow-800' :
@@ -699,15 +600,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                       {doctor.status.replace('_', ' ').toUpperCase()}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 mb-1">
-                    {doctor.specialization} • {doctor.qualification || 'No qualification listed'}
+                  <p className="text-sm text-slate-600 mb-1">
+                    {departments.find(d => d.name === doctor.specialization)?.display_name || doctor.specialization} • {doctor.qualification || 'No qualification listed'}
                   </p>
-                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+                  <div className="flex items-center space-x-4 text-sm text-slate-500">
                     <span>{doctor.experience_years} years exp</span>
                     <span>₹{doctor.consultation_fee}</span>
                     <span>Max: {doctor.max_patients_per_day}/day</span>
                   </div>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-slate-500 mt-1">
                     {doctor.available_hours.start} - {doctor.available_hours.end} • {doctor.available_days.length} days/week
                   </p>
                 </div>
@@ -725,9 +626,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                   </Button>
                   <Button
                     size="sm"
-                    variant="danger"
+                    variant="outline"
                     onClick={() => deleteItem('doctors', doctor.id)}
                     disabled={saving}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -736,13 +638,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
             </CardContent>
           </Card>
         ))}
-        
-        {doctors.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            <Plus className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <p>No doctors found. Add your first doctor to get started.</p>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -776,14 +671,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
             <>
               <div className="grid md:grid-cols-2 gap-4">
                 <Input
-                  label="Name (Internal)"
+                  label="Name (Internal) *"
                   value={editingItem.name}
                   onChange={(e) => setEditingItem({...editingItem, name: e.target.value})}
                   placeholder="e.g., general_medicine"
                   required
                 />
                 <Input
-                  label="Display Name"
+                  label="Display Name *"
                   value={editingItem.display_name}
                   onChange={(e) => setEditingItem({...editingItem, display_name: e.target.value})}
                   placeholder="e.g., General Medicine"
@@ -798,7 +693,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
               />
               <div className="grid md:grid-cols-3 gap-4">
                 <Input
-                  label="Consultation Fee (₹)"
+                  label="Consultation Fee (₹) *"
                   type="number"
                   value={editingItem.consultation_fee}
                   onChange={(e) => setEditingItem({...editingItem, consultation_fee: parseFloat(e.target.value) || 0})}
@@ -806,7 +701,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                   required
                 />
                 <Input
-                  label="Avg Time (minutes)"
+                  label="Avg Time (minutes) *"
                   type="number"
                   value={editingItem.average_consultation_time}
                   onChange={(e) => setEditingItem({...editingItem, average_consultation_time: parseInt(e.target.value) || 15})}
@@ -826,9 +721,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                   id="is_active"
                   checked={editingItem.is_active}
                   onChange={(e) => setEditingItem({...editingItem, is_active: e.target.checked})}
-                  className="rounded border-gray-300"
+                  className="rounded border-slate-300"
                 />
-                <label htmlFor="is_active" className="text-sm font-medium text-gray-700">
+                <label htmlFor="is_active" className="text-sm font-medium text-slate-700">
                   Active Department
                 </label>
               </div>
@@ -839,14 +734,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
             <>
               <div className="grid md:grid-cols-2 gap-4">
                 <Input
-                  label="Full Name"
+                  label="Full Name *"
                   value={editingItem.name}
                   onChange={(e) => setEditingItem({...editingItem, name: e.target.value})}
                   placeholder="Dr. John Doe"
                   required
                 />
                 <Select
-                  label="Specialization"
+                  label="Specialization *"
                   value={editingItem.specialization}
                   onChange={(e) => setEditingItem({...editingItem, specialization: e.target.value})}
                   options={[
@@ -905,6 +800,31 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                 onChange={(e) => setEditingItem({...editingItem, max_patients_per_day: parseInt(e.target.value) || 50})}
                 min="1"
               />
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Available Days
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
+                    <label key={day} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingItem.available_days?.includes(day) || false}
+                        onChange={(e) => {
+                          const days = editingItem.available_days || [];
+                          if (e.target.checked) {
+                            setEditingItem({...editingItem, available_days: [...days, day]});
+                          } else {
+                            setEditingItem({...editingItem, available_days: days.filter(d => d !== day)});
+                          }
+                        }}
+                        className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                      />
+                      <span className="text-sm capitalize">{day.slice(0, 3)}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
               <Select
                 label="Status"
                 value={editingItem.status}
@@ -956,24 +876,27 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title="Clinic Settings" size="xl">
+      <Modal isOpen={isOpen} onClose={onClose} title="System Settings & Configuration" size="xl">
         <div className="space-y-6">
           {/* Tabs */}
-          <div className="border-b border-gray-200">
+          <div className="border-b border-slate-200">
             <nav className="-mb-px flex space-x-8">
               {[
                 { key: 'general', label: 'General Settings', icon: Settings },
-                { key: 'departments', label: `Departments (${departments.length})`, icon: Settings },
-                { key: 'doctors', label: `Doctors (${doctors.length})`, icon: Settings },
-                { key: 'payment', label: 'Payment Settings', icon: Settings }
+                { key: 'departments', label: `Departments (${departments.length})`, icon: Building2 },
+                { key: 'doctors', label: `Doctors (${doctors.length})`, icon: Users },
+                { key: 'payment', label: 'Payment Settings', icon: DollarSign },
+                { key: 'daycare', label: 'Day Care Settings', icon: Bed },
+                { key: 'pharmacy', label: 'Pharmacy Settings', icon: Pill },
+                { key: 'rooms', label: 'Room Settings', icon: Building2 }
               ].map(({ key, label, icon: Icon }) => (
                 <button
                   key={key}
                   onClick={() => setActiveTab(key as any)}
                   className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center transition-colors ${
                     activeTab === key
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-teal-500 text-teal-600'
+                      : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
                   }`}
                 >
                   <Icon className="h-4 w-4 mr-2" />
@@ -987,8 +910,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
           <div className="max-h-96 overflow-y-auto">
             {loading ? (
               <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="text-gray-600 mt-2">Loading settings...</p>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto"></div>
+                <p className="text-slate-600 mt-2">Loading settings...</p>
               </div>
             ) : (
               <>
@@ -997,20 +920,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                 {activeTab === 'doctors' && renderDoctors()}
                 {activeTab === 'payment' && (
                   <div className="space-y-6">
-                    {error && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center">
-                        <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-                        <span className="text-red-700">{error}</span>
-                      </div>
-                    )}
-                    
                     {settings.filter(s => s.setting_type === 'payment').map((setting) => (
-                      <div key={setting.id} className="flex items-center justify-between p-4 border rounded-lg bg-white">
+                      <div key={setting.setting_key} className="flex items-center justify-between p-4 border rounded-lg bg-white">
                         <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">
+                          <h4 className="font-medium text-slate-900">
                             {setting.setting_key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                           </h4>
-                          <p className="text-sm text-gray-600">{setting.description}</p>
+                          <p className="text-sm text-slate-600">{setting.description}</p>
                         </div>
                         <div className="w-64 ml-4">
                           {setting.setting_key === 'enable_online_payments' ? (
@@ -1020,12 +936,21 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                                 checked={setting.setting_value}
                                 onChange={(e) => updateSetting(setting.setting_key, e.target.checked)}
                                 disabled={saving}
-                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
                               />
-                              <span className="text-sm text-gray-700">
+                              <span className="text-sm text-slate-700">
                                 {setting.setting_value ? 'Enabled' : 'Disabled'}
                               </span>
                             </div>
+                          ) : setting.setting_key.includes('percent') ? (
+                            <Input
+                              type="number"
+                              value={setting.setting_value}
+                              onChange={(e) => updateSetting(setting.setting_key, parseInt(e.target.value) || 0)}
+                              disabled={saving}
+                              min="0"
+                              max="100"
+                            />
                           ) : (
                             <Input
                               type={setting.setting_key.includes('secret') ? 'password' : 'text'}
@@ -1038,18 +963,75 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                         </div>
                       </div>
                     ))}
-                    
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h4 className="font-semibold text-blue-900 mb-2">Stripe Test Mode</h4>
-                      <p className="text-sm text-blue-800 mb-3">
-                        The system is configured with Stripe test keys. Use test card numbers for payments:
-                      </p>
-                      <div className="text-sm text-blue-700 space-y-1">
-                        <p>• Success: 4242 4242 4242 4242</p>
-                        <p>• Decline: 4000 0000 0000 0002</p>
-                        <p>• Any future expiry date and CVC</p>
+                  </div>
+                )}
+                {activeTab === 'daycare' && (
+                  <div className="space-y-6">
+                    {settings.filter(s => s.setting_type === 'daycare').map((setting) => (
+                      <div key={setting.setting_key} className="flex items-center justify-between p-4 border rounded-lg bg-white">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-slate-900">
+                            {setting.setting_key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </h4>
+                          <p className="text-sm text-slate-600">{setting.description}</p>
+                        </div>
+                        <div className="w-64 ml-4">
+                          <Input
+                            type="number"
+                            value={setting.setting_value}
+                            onChange={(e) => updateSetting(setting.setting_key, parseInt(e.target.value) || 0)}
+                            disabled={saving}
+                            min="0"
+                          />
+                        </div>
                       </div>
-                    </div>
+                    ))}
+                  </div>
+                )}
+                {activeTab === 'pharmacy' && (
+                  <div className="space-y-6">
+                    {settings.filter(s => s.setting_type === 'pharmacy').map((setting) => (
+                      <div key={setting.setting_key} className="flex items-center justify-between p-4 border rounded-lg bg-white">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-slate-900">
+                            {setting.setting_key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </h4>
+                          <p className="text-sm text-slate-600">{setting.description}</p>
+                        </div>
+                        <div className="w-64 ml-4">
+                          <Input
+                            type="number"
+                            value={setting.setting_value}
+                            onChange={(e) => updateSetting(setting.setting_key, parseInt(e.target.value) || 0)}
+                            disabled={saving}
+                            min="0"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {activeTab === 'rooms' && (
+                  <div className="space-y-6">
+                    {settings.filter(s => s.setting_type === 'rooms').map((setting) => (
+                      <div key={setting.setting_key} className="flex items-center justify-between p-4 border rounded-lg bg-white">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-slate-900">
+                            {setting.setting_key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </h4>
+                          <p className="text-sm text-slate-600">{setting.description}</p>
+                        </div>
+                        <div className="w-64 ml-4">
+                          <Input
+                            type="number"
+                            value={setting.setting_value}
+                            onChange={(e) => updateSetting(setting.setting_key, parseInt(e.target.value) || 0)}
+                            disabled={saving}
+                            min="0"
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </>
