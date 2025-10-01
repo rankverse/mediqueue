@@ -32,10 +32,10 @@ export const Input: React.FC<InputProps> = ({
         id={inputId}
         type={type}
         className={cn(
-          'w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm transition-colors',
-          'focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent',
-          'disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed',
-          'placeholder:text-slate-400',
+          'w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm transition-colors',
+          'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+          'disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed',
+          'placeholder:text-gray-400',
           error && 'border-red-500 focus:ring-red-500',
           className
         )}

@@ -4,31 +4,26 @@ import {
   Users, 
   Clock, 
   Mic, 
-  FileText, 
-  UserPlus, 
-  Phone, 
-  Bed,
-  ArrowRight,
-  CheckCircle,
-  AlertTriangle,
+  MicOff, 
+  RefreshCw, 
+  User,
+  FileText,
+  Save,
+  Printer,
+  Plus,
+  Trash2,
+  Calendar,
+  Phone,
+  Mail,
   Activity,
   Heart,
-  Pill,
-  Calendar,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Volume2,
+  VolumeX,
   Settings,
-  LogOut,
-  Play,
-  Pause,
-  Save,
-  Trash2,
-  Send,
-  Bell,
-  UserCheck,
-  Building2,
-  Clipboard,
-  Download,
-  Printer,
-  RefreshCw
+  LogOut
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -38,53 +33,40 @@ import { Modal } from '../components/ui/Modal';
 import { VoiceNoteRecorder } from '../components/VoiceNoteRecorder';
 import { useDoctorSession } from '../hooks/useDoctorSession';
 import { useAuth } from '../hooks/useAuth';
+import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
 import { supabase } from '../lib/supabase';
-import { Doctor, Visit, Patient, MedicalHistory } from '../types';
 import { formatTime, formatDate } from '../lib/utils';
+import { Doctor, Visit, Consultation, ConsultationNote } from '../types';
 
 export const DoctorRoomPage: React.FC = () => {
   const { user, signOut } = useAuth();
-  const [selectedDoctor, setSelectedDoctor] = useState<string>('');
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [roomName, setRoomName] = useState('');
-  const [showDoctorSelect, setShowDoctorSelect] = useState(true);
+  const [showStartModal, setShowStartModal] = useState(true);
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
-  const [showAdmissionModal, setShowAdmissionModal] = useState(false);
-  const [showReferralModal, setShowReferralModal] = useState(false);
-  const [showNurseCallModal, setShowNurseCallModal] = useState(false);
-  const [currentPatient, setCurrentPatient] = useState<Visit | null>(null);
-  const [prescriptionData, setPrescriptionData] = useState({
+  const [currentPrescription, setCurrentPrescription] = useState({
+    medicines: [{ name: '', dosage: '', frequency: '', duration: '', instructions: '' }],
     diagnosis: '',
-    prescription: '',
+    symptoms: '',
     notes: '',
-    follow_up_days: 0
+    followUpDate: '',
+    tests: ''
   });
-  const [admissionData, setAdmissionData] = useState({
-    reason: '',
-    admission_type: 'planned',
-    ward_type: 'general',
-    estimated_duration: 1,
-    special_requirements: ''
-  });
-  const [referralData, setReferralData] = useState({
-    department: '',
-    reason: '',
-    urgency: 'normal',
-    notes: ''
-  });
-  const [nurseCallData, setNurseCallData] = useState({
-    urgency: 'normal',
-    reason: '',
-    room_number: '',
-    special_instructions: ''
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [speakerEnabled, setSpeakerEnabled] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(30);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTranscript, setRecordingTranscript] = useState('');
 
   const {
     session,
     consultations,
     waitingPatients,
+    currentPatient,
+    loading,
+    error,
     startSession,
     endSession,
     updateSessionStatus,
@@ -92,405 +74,318 @@ export const DoctorRoomPage: React.FC = () => {
     completeConsultation,
     callNextPatient,
     refetch
-  } = useDoctorSession(selectedDoctor);
+  } = useDoctorSession(selectedDoctorId);
 
+  // Voice recognition for prescription dictation
+  const {
+    isListening,
+    transcript,
+    interimTranscript,
+    startListening,
+    stopListening,
+    resetTranscript,
+    isSupported: voiceSupported
+  } = useVoiceRecognition({
+    continuous: true,
+    interimResults: true,
+    onResult: (text, isFinal) => {
+      if (isFinal) {
+        setRecordingTranscript(prev => prev + ' ' + text);
+      }
+    }
+  });
+
+  // Text-to-speech for announcements
+  const speak = (text: string) => {
+    if (!speakerEnabled || !('speechSynthesis' in window)) return;
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.8;
+    utterance.pitch = 1;
+    utterance.volume = 0.8;
+    speechSynthesis.speak(utterance);
+  };
+
+  // Auto refresh functionality
+  useEffect(() => {
+    if (!autoRefresh || !session) return;
+
+    const interval = setInterval(() => {
+      refetch();
+      setLastRefresh(new Date());
+    }, refreshInterval * 1000);
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, refreshInterval, session, refetch]);
+
+  // Fetch doctors on component mount
   useEffect(() => {
     fetchDoctors();
   }, []);
 
+  // Announce new patients
   useEffect(() => {
-    if (session) {
-      setRoomName(session.room_name);
+    if (waitingPatients.length > 0 && speakerEnabled) {
+      const patientCount = waitingPatients.length;
+      speak(`${patientCount} patient${patientCount > 1 ? 's' : ''} waiting in queue`);
     }
-  }, [session]);
+  }, [waitingPatients.length, speakerEnabled]);
 
   const fetchDoctors = async () => {
     try {
-      // Demo doctors data
-      const demoDoctors: Doctor[] = [
-        {
-          id: 'doc1',
-          name: 'Dr. Sarah Johnson',
-          specialization: 'general',
-          qualification: 'MBBS, MD',
-          experience_years: 10,
-          consultation_fee: 500,
-          available_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-          available_hours: { start: '09:00', end: '17:00' },
-          max_patients_per_day: 50,
-          status: 'active',
-          created_at: '',
-          updated_at: ''
-        },
-        {
-          id: 'doc2',
-          name: 'Dr. Michael Chen',
-          specialization: 'cardiology',
-          qualification: 'MBBS, MD, DM Cardiology',
-          experience_years: 15,
-          consultation_fee: 800,
-          available_days: ['monday', 'wednesday', 'friday'],
-          available_hours: { start: '10:00', end: '16:00' },
-          max_patients_per_day: 30,
-          status: 'active',
-          created_at: '',
-          updated_at: ''
-        },
-        {
-          id: 'doc3',
-          name: 'Dr. Emily Rodriguez',
-          specialization: 'orthopedics',
-          qualification: 'MBBS, MS Orthopedics',
-          experience_years: 12,
-          consultation_fee: 700,
-          available_days: ['tuesday', 'thursday', 'saturday'],
-          available_hours: { start: '08:00', end: '16:00' },
-          max_patients_per_day: 40,
-          status: 'active',
-          created_at: '',
-          updated_at: ''
-        }
-      ];
-      
-      setDoctors(demoDoctors);
+      const { data, error } = await supabase
+        .from('doctors')
+        .select('*')
+        .eq('status', 'active')
+        .order('name');
+
+      if (error) throw error;
+      setDoctors(data || []);
     } catch (error) {
       console.error('Error fetching doctors:', error);
     }
   };
 
   const handleStartSession = async () => {
-    if (!selectedDoctor || !roomName.trim()) {
-      setError('Please select doctor and enter room name');
+    if (!selectedDoctorId || !roomName.trim()) {
+      alert('Please select a doctor and enter room name');
       return;
     }
 
-    setLoading(true);
-    try {
-      await startSession(roomName.trim());
-      setShowDoctorSelect(false);
-      setError('');
-    } catch (error) {
-      console.error('Error starting session:', error);
-      setError('Failed to start session');
-    } finally {
-      setLoading(false);
+    const newSession = await startSession(roomName.trim());
+    if (newSession) {
+      setShowStartModal(false);
+      speak(`Session started for room ${roomName}`);
     }
   };
 
   const handleEndSession = async () => {
-    if (!confirm('Are you sure you want to end this session?')) return;
-
-    setLoading(true);
-    try {
+    if (confirm('Are you sure you want to end this session?')) {
       await endSession();
-      setShowDoctorSelect(true);
-      setSelectedDoctor('');
-      setRoomName('');
-      setError('');
-    } catch (error) {
-      console.error('Error ending session:', error);
-      setError('Failed to end session');
-    } finally {
-      setLoading(false);
+      setShowStartModal(true);
+      speak('Session ended');
     }
   };
 
-  const handleCallNextPatient = async () => {
-    setLoading(true);
-    try {
-      const consultation = await callNextPatient();
-      if (consultation) {
-        const visit = waitingPatients.find(p => p.id === consultation.visit_id);
-        setCurrentPatient(visit || null);
-      }
-      setError('');
-    } catch (error) {
-      console.error('Error calling next patient:', error);
-      setError('Failed to call next patient');
-    } finally {
-      setLoading(false);
+  const handleCallNext = async () => {
+    const consultation = await callNextPatient();
+    if (consultation) {
+      speak(`Next patient called. Token number ${consultation.visit?.stn}`);
     }
+  };
+
+  const handleCompleteConsultation = async (consultationId: string) => {
+    await completeConsultation(consultationId);
+    speak('Consultation completed');
+  };
+
+  const handleRefresh = () => {
+    refetch();
+    setLastRefresh(new Date());
+    speak('Data refreshed');
+  };
+
+  const toggleRecording = () => {
+    if (isListening) {
+      stopListening();
+      setIsRecording(false);
+    } else {
+      startListening();
+      setIsRecording(true);
+      resetTranscript();
+      setRecordingTranscript('');
+    }
+  };
+
+  const addMedicine = () => {
+    setCurrentPrescription(prev => ({
+      ...prev,
+      medicines: [...prev.medicines, { name: '', dosage: '', frequency: '', duration: '', instructions: '' }]
+    }));
+  };
+
+  const removeMedicine = (index: number) => {
+    setCurrentPrescription(prev => ({
+      ...prev,
+      medicines: prev.medicines.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateMedicine = (index: number, field: string, value: string) => {
+    setCurrentPrescription(prev => ({
+      ...prev,
+      medicines: prev.medicines.map((med, i) => 
+        i === index ? { ...med, [field]: value } : med
+      )
+    }));
   };
 
   const savePrescription = async () => {
-    if (!currentPatient || !prescriptionData.diagnosis || !prescriptionData.prescription) {
-      setError('Please fill in diagnosis and prescription');
-      return;
-    }
+    if (!currentPatient) return;
 
-    setLoading(true);
     try {
+      const prescriptionText = `
+DIAGNOSIS: ${currentPrescription.diagnosis}
+SYMPTOMS: ${currentPrescription.symptoms}
+
+PRESCRIPTION:
+${currentPrescription.medicines.map((med, index) => 
+  `${index + 1}. ${med.name} - ${med.dosage}
+   Frequency: ${med.frequency}
+   Duration: ${med.duration}
+   Instructions: ${med.instructions}`
+).join('\n\n')}
+
+TESTS RECOMMENDED: ${currentPrescription.tests}
+NOTES: ${currentPrescription.notes}
+FOLLOW-UP: ${currentPrescription.followUpDate}
+      `.trim();
+
+      // Save to medical history
       const { error } = await supabase
         .from('medical_history')
         .insert({
           patient_uid: currentPatient.patient?.uid,
           visit_id: currentPatient.id,
-          doctor_id: selectedDoctor,
-          diagnosis: prescriptionData.diagnosis,
-          prescription: prescriptionData.prescription,
-          notes: prescriptionData.notes
+          doctor_id: selectedDoctorId,
+          diagnosis: currentPrescription.diagnosis,
+          prescription: prescriptionText,
+          notes: currentPrescription.notes
         });
 
       if (error) throw error;
 
-      // Schedule follow-up if needed
-      if (prescriptionData.follow_up_days > 0) {
-        const followUpDate = new Date();
-        followUpDate.setDate(followUpDate.getDate() + prescriptionData.follow_up_days);
-        
-        await supabase
-          .from('appointments')
-          .insert({
-            patient_id: currentPatient.patient_id,
-            doctor_id: selectedDoctor,
-            appointment_date: followUpDate.toISOString().split('T')[0],
-            appointment_time: '10:00',
-            appointment_type: 'follow_up',
-            status: 'scheduled',
-            notes: `Follow-up for: ${prescriptionData.diagnosis}`
-          });
-      }
+      // Reset form
+      setCurrentPrescription({
+        medicines: [{ name: '', dosage: '', frequency: '', duration: '', instructions: '' }],
+        diagnosis: '',
+        symptoms: '',
+        notes: '',
+        followUpDate: '',
+        tests: ''
+      });
 
       setShowPrescriptionModal(false);
-      setPrescriptionData({ diagnosis: '', prescription: '', notes: '', follow_up_days: 0 });
-      setError('');
+      speak('Prescription saved successfully');
       alert('Prescription saved successfully!');
     } catch (error) {
       console.error('Error saving prescription:', error);
-      setError('Failed to save prescription');
-    } finally {
-      setLoading(false);
+      alert('Failed to save prescription');
     }
   };
 
-  const suggestAdmission = async () => {
-    if (!currentPatient || !admissionData.reason) {
-      setError('Please fill in admission reason');
-      return;
-    }
+  const printPrescription = () => {
+    const printContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px;">
+          <h1 style="color: #2563eb; margin: 0;">MediQueue Clinic</h1>
+          <p style="margin: 5px 0;">Digital Prescription</p>
+          <p style="margin: 5px 0;">Date: ${formatDate(new Date().toISOString())}</p>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <h3 style="color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Patient Information</h3>
+          <p><strong>Name:</strong> ${currentPatient?.patient?.name}</p>
+          <p><strong>Age:</strong> ${currentPatient?.patient?.age}</p>
+          <p><strong>Phone:</strong> ${currentPatient?.patient?.phone}</p>
+          <p><strong>Token:</strong> #${currentPatient?.stn}</p>
+        </div>
 
-    setLoading(true);
-    try {
-      // Create admission request
-      const admissionRequest = {
-        patient_id: currentPatient.patient_id,
-        visit_id: currentPatient.id,
-        doctor_id: selectedDoctor,
-        admission_type: admissionData.admission_type,
-        ward_type: admissionData.ward_type,
-        estimated_duration: admissionData.estimated_duration,
-        reason: admissionData.reason,
-        special_requirements: admissionData.special_requirements,
-        status: 'pending',
-        priority: admissionData.admission_type === 'emergency' ? 'urgent' : 'normal',
-        created_at: new Date().toISOString()
-      };
+        <div style="margin-bottom: 20px;">
+          <h3 style="color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Diagnosis</h3>
+          <p>${currentPrescription.diagnosis}</p>
+        </div>
 
-      // In real app, this would be saved to database
-      console.log('Admission request created:', admissionRequest);
+        <div style="margin-bottom: 20px;">
+          <h3 style="color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Symptoms</h3>
+          <p>${currentPrescription.symptoms}</p>
+        </div>
 
-      // Create notification for admin
-      await supabase
-        .from('notifications')
-        .insert({
-          recipient_type: 'admin',
-          title: 'New Admission Request',
-          message: `Dr. ${doctors.find(d => d.id === selectedDoctor)?.name} has suggested admission for ${currentPatient.patient?.name}`,
-          type: 'info',
-          metadata: { admission_request: admissionRequest }
-        });
+        <div style="margin-bottom: 20px;">
+          <h3 style="color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Prescription</h3>
+          ${currentPrescription.medicines.map((med, index) => `
+            <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #eee; border-radius: 5px;">
+              <p><strong>${index + 1}. ${med.name}</strong></p>
+              <p>Dosage: ${med.dosage}</p>
+              <p>Frequency: ${med.frequency}</p>
+              <p>Duration: ${med.duration}</p>
+              <p>Instructions: ${med.instructions}</p>
+            </div>
+          `).join('')}
+        </div>
 
-      setShowAdmissionModal(false);
-      setAdmissionData({ reason: '', admission_type: 'planned', ward_type: 'general', estimated_duration: 1, special_requirements: '' });
-      setError('');
-      alert('Admission request sent to admin successfully!');
-    } catch (error) {
-      console.error('Error suggesting admission:', error);
-      setError('Failed to send admission request');
-    } finally {
-      setLoading(false);
-    }
-  };
+        ${currentPrescription.tests && `
+          <div style="margin-bottom: 20px;">
+            <h3 style="color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Recommended Tests</h3>
+            <p>${currentPrescription.tests}</p>
+          </div>
+        `}
 
-  const sendReferral = async () => {
-    if (!currentPatient || !referralData.department || !referralData.reason) {
-      setError('Please fill in department and reason');
-      return;
-    }
+        ${currentPrescription.notes && `
+          <div style="margin-bottom: 20px;">
+            <h3 style="color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Additional Notes</h3>
+            <p>${currentPrescription.notes}</p>
+          </div>
+        `}
 
-    setLoading(true);
-    try {
-      // Create referral
-      const referral = {
-        patient_id: currentPatient.patient_id,
-        from_doctor_id: selectedDoctor,
-        to_department: referralData.department,
-        reason: referralData.reason,
-        urgency: referralData.urgency,
-        notes: referralData.notes,
-        status: 'pending',
-        created_at: new Date().toISOString()
-      };
+        ${currentPrescription.followUpDate && `
+          <div style="margin-bottom: 20px;">
+            <h3 style="color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Follow-up</h3>
+            <p>Next visit: ${currentPrescription.followUpDate}</p>
+          </div>
+        `}
 
-      console.log('Referral created:', referral);
+        <div style="margin-top: 40px; text-align: center; border-top: 1px solid #ccc; padding-top: 20px;">
+          <p style="margin: 0;"><strong>Dr. ${doctors.find(d => d.id === selectedDoctorId)?.name}</strong></p>
+          <p style="margin: 5px 0;">${doctors.find(d => d.id === selectedDoctorId)?.qualification}</p>
+          <p style="margin: 5px 0; font-size: 12px; color: #666;">This is a digitally generated prescription</p>
+        </div>
+      </div>
+    `;
 
-      // Create notification
-      await supabase
-        .from('notifications')
-        .insert({
-          recipient_type: 'admin',
-          title: 'New Department Referral',
-          message: `Patient ${currentPatient.patient?.name} referred to ${referralData.department} department`,
-          type: 'info',
-          metadata: { referral }
-        });
-
-      setShowReferralModal(false);
-      setReferralData({ department: '', reason: '', urgency: 'normal', notes: '' });
-      setError('');
-      alert('Referral sent successfully!');
-    } catch (error) {
-      console.error('Error sending referral:', error);
-      setError('Failed to send referral');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const callNurse = async () => {
-    if (!nurseCallData.reason) {
-      setError('Please specify reason for calling nurse');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const nurseCall = {
-        doctor_id: selectedDoctor,
-        patient_id: currentPatient?.patient_id,
-        urgency: nurseCallData.urgency,
-        reason: nurseCallData.reason,
-        room_number: nurseCallData.room_number || roomName,
-        special_instructions: nurseCallData.special_instructions,
-        status: 'pending',
-        created_at: new Date().toISOString()
-      };
-
-      console.log('Nurse call created:', nurseCall);
-
-      // Create notification for nursing staff
-      await supabase
-        .from('notifications')
-        .insert({
-          recipient_type: 'admin',
-          title: 'Nurse Call Request',
-          message: `Dr. ${doctors.find(d => d.id === selectedDoctor)?.name} requests nurse assistance in ${roomName}`,
-          type: nurseCallData.urgency === 'urgent' ? 'warning' : 'info',
-          metadata: { nurse_call: nurseCall }
-        });
-
-      setShowNurseCallModal(false);
-      setNurseCallData({ urgency: 'normal', reason: '', room_number: '', special_instructions: '' });
-      setError('');
-      alert('Nurse call sent successfully!');
-    } catch (error) {
-      console.error('Error calling nurse:', error);
-      setError('Failed to call nurse');
-    } finally {
-      setLoading(false);
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Prescription - ${currentPatient?.patient?.name}</title>
+            <style>
+              @media print {
+                body { margin: 0; }
+                .no-print { display: none; }
+              }
+            </style>
+          </head>
+          <body>
+            ${printContent}
+            <div class="no-print" style="text-align: center; margin-top: 20px;">
+              <button onclick="window.print()" style="padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 5px; cursor: pointer;">Print</button>
+              <button onclick="window.close()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Close</button>
+            </div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
     }
   };
 
-  const completeCurrentConsultation = async () => {
-    if (!currentPatient) return;
-
-    setLoading(true);
-    try {
-      const activeConsultation = consultations.find(c => 
-        c.visit_id === currentPatient.id && c.status === 'in_progress'
-      );
-
-      if (activeConsultation) {
-        await completeConsultation(activeConsultation.id);
-      }
-
-      setCurrentPatient(null);
-      setError('');
-    } catch (error) {
-      console.error('Error completing consultation:', error);
-      setError('Failed to complete consultation');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Doctor Selection Screen
-  if (showDoctorSelect || !session) {
+  // Login check
+  if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card className="w-full max-w-md">
-          <CardHeader>
-            <div className="text-center">
-              <div className="bg-teal-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                <Stethoscope className="h-8 w-8 text-teal-600" />
-              </div>
-              <h1 className="text-2xl font-bold text-gray-900">Doctor Consultation Room</h1>
-              <p className="text-gray-600 mt-2">Select your profile to start consultation session</p>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Select
-              label="Select Doctor Profile *"
-              value={selectedDoctor}
-              onChange={(e) => setSelectedDoctor(e.target.value)}
-              options={[
-                { value: '', label: 'Choose your doctor profile' },
-                ...doctors.map(doctor => ({
-                  value: doctor.id,
-                  label: `${doctor.name} - ${doctor.specialization}`
-                }))
-              ]}
-              required
-            />
-
-            <Input
-              label="Room/Cabin Name *"
-              value={roomName}
-              onChange={(e) => setRoomName(e.target.value)}
-              placeholder="e.g., Consultation Room 1, Cabin A"
-              required
-            />
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-red-800 text-sm">{error}</p>
-              </div>
-            )}
-
-            <Button
-              onClick={handleStartSession}
-              loading={loading}
-              disabled={!selectedDoctor || !roomName.trim()}
-              className="w-full bg-teal-600 hover:bg-teal-700"
-            >
-              <Play className="h-4 w-4 mr-2" />
-              Start Consultation Session
+          <CardContent className="pt-6 text-center">
+            <Stethoscope className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Doctor Room Access</h2>
+            <p className="text-gray-600 mb-4">Please sign in to access the doctor room</p>
+            <Button onClick={() => window.location.href = '/admin'}>
+              Go to Admin Login
             </Button>
-
-            <div className="text-center pt-4 border-t">
-              <Button variant="outline" onClick={() => signOut()}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
-              </Button>
-            </div>
           </CardContent>
         </Card>
       </div>
     );
   }
-
-  const selectedDoctorData = doctors.find(d => d.id === selectedDoctor);
-  const activeConsultation = consultations.find(c => c.status === 'in_progress');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -499,62 +394,65 @@ export const DoctorRoomPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <div className="bg-teal-600 rounded-lg p-2 mr-3">
-                <Stethoscope className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  {selectedDoctorData?.name} - Consultation Room
-                </h1>
-                <p className="text-sm text-gray-600">
-                  {roomName} • {selectedDoctorData?.specialization}
-                </p>
-              </div>
+              <Stethoscope className="h-8 w-8 text-blue-600 mr-3" />
+              <h1 className="text-2xl font-bold text-gray-900">Doctor Room</h1>
+              {session && (
+                <span className="ml-4 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                  {session.room_name} - {session.session_status.toUpperCase()}
+                </span>
+              )}
             </div>
             <div className="flex items-center space-x-4">
+              {/* Speaker Toggle */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSpeakerEnabled(!speakerEnabled);
+                  speak(speakerEnabled ? 'Speaker disabled' : 'Speaker enabled');
+                }}
+                className={speakerEnabled ? 'bg-green-50 border-green-200' : ''}
+              >
+                {speakerEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              </Button>
+
+              {/* Auto Refresh Toggle */}
               <div className="flex items-center space-x-2">
-                <div className={`w-3 h-3 rounded-full ${
-                  session?.session_status === 'active' ? 'bg-green-500 animate-pulse' :
-                  session?.session_status === 'break' ? 'bg-yellow-500' :
-                  'bg-red-500'
-                }`}></div>
-                <span className="text-sm font-medium text-gray-700">
-                  {session?.session_status === 'active' ? 'Active Session' :
-                   session?.session_status === 'break' ? 'On Break' :
-                   'Inactive'}
-                </span>
+                <input
+                  type="checkbox"
+                  id="auto-refresh"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="auto-refresh" className="text-sm text-gray-600">
+                  Auto ({refreshInterval}s)
+                </label>
               </div>
-              
+
+              {/* Manual Refresh */}
               <Button
-                onClick={() => updateSessionStatus(session?.session_status === 'active' ? 'break' : 'active')}
                 variant="outline"
                 size="sm"
+                onClick={handleRefresh}
+                disabled={loading}
               >
-                {session?.session_status === 'active' ? (
-                  <>
-                    <Pause className="h-4 w-4 mr-2" />
-                    Take Break
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4 mr-2" />
-                    Resume
-                  </>
-                )}
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
 
-              <Button
-                onClick={() => setShowNurseCallModal(true)}
-                variant="outline"
-                size="sm"
-              >
-                <Bell className="h-4 w-4 mr-2" />
-                Call Nurse
-              </Button>
+              <span className="text-xs text-gray-500">
+                Last: {formatTime(lastRefresh.toISOString())}
+              </span>
 
-              <Button onClick={handleEndSession} variant="outline" size="sm">
+              {session && (
+                <Button variant="outline" onClick={handleEndSession} size="sm">
+                  End Session
+                </Button>
+              )}
+
+              <Button variant="outline" onClick={() => signOut()} size="sm">
                 <LogOut className="h-4 w-4 mr-2" />
-                End Session
+                Sign Out
               </Button>
             </div>
           </div>
@@ -563,61 +461,163 @@ export const DoctorRoomPage: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && (
-          <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex items-center">
-              <AlertTriangle className="h-5 w-5 text-red-500 mr-3" />
-              <p className="text-red-700">{error}</p>
-              <Button onClick={() => setError('')} variant="ghost" size="sm" className="ml-auto">×</Button>
+              <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
+              <p className="text-red-800">{error}</p>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Current Patient */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card className="border-l-4 border-teal-500">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">Current Patient</h3>
-                  <div className="flex space-x-2">
-                    <Button
-                      onClick={handleCallNextPatient}
-                      disabled={waitingPatients.length === 0 || activeConsultation}
-                      size="sm"
-                    >
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Call Next
-                    </Button>
-                    <Button onClick={() => refetch()} variant="outline" size="sm">
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
+        {!session ? (
+          <div className="text-center py-12">
+            <Stethoscope className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">No Active Session</h2>
+            <p className="text-gray-600 mb-6">Start a new session to begin consultations</p>
+            <Button onClick={() => setShowStartModal(true)}>
+              Start New Session
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Session Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Users className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">Waiting</p>
+                      <p className="text-2xl font-bold text-gray-900">{waitingPatients.length}</p>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {currentPatient ? (
-                  <div className="space-y-4">
-                    <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <h4 className="font-bold text-teal-900 text-lg">{currentPatient.patient?.name}</h4>
-                          <p className="text-teal-700">Token #{currentPatient.stn} • {currentPatient.patient?.uid}</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <CheckCircle className="h-6 w-6 text-green-600" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">Completed</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {consultations.filter(c => c.status === 'completed').length}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-yellow-100 rounded-lg">
+                      <Clock className="h-6 w-6 text-yellow-600" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">Session Time</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {Math.floor((Date.now() - new Date(session.started_at).getTime()) / (1000 * 60))}m
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                      <Activity className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">Status</p>
+                      <p className="text-lg font-bold text-purple-900 capitalize">
+                        {session.session_status.replace('_', ' ')}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Current Patient */}
+            {currentPatient && (
+              <Card className="border-l-4 border-green-500">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-green-800">Current Patient</h3>
+                    <div className="flex space-x-2">
+                      <Button
+                        onClick={() => setShowPrescriptionModal(true)}
+                        size="sm"
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Write Prescription
+                      </Button>
+                      <Button
+                        onClick={() => handleCompleteConsultation(
+                          consultations.find(c => c.visit_id === currentPatient.id)?.id || ''
+                        )}
+                        variant="secondary"
+                        size="sm"
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Complete
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-3">Patient Information</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center space-x-2">
+                          <User className="h-4 w-4 text-gray-500" />
+                          <span className="font-medium">{currentPatient.patient?.name}</span>
                         </div>
-                        <div className="text-right">
-                          <div className="text-sm text-teal-700">Age: {currentPatient.patient?.age}</div>
-                          <div className="text-sm text-teal-700">Phone: {currentPatient.patient?.phone}</div>
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="h-4 w-4 text-gray-500" />
+                          <span>{currentPatient.patient?.age} years old</span>
                         </div>
+                        <div className="flex items-center space-x-2">
+                          <Phone className="h-4 w-4 text-gray-500" />
+                          <span>{currentPatient.patient?.phone}</span>
+                        </div>
+                        {currentPatient.patient?.email && (
+                          <div className="flex items-center space-x-2">
+                            <Mail className="h-4 w-4 text-gray-500" />
+                            <span>{currentPatient.patient.email}</span>
+                          </div>
+                        )}
                       </div>
+                    </div>
+
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-3">Health Information</h4>
+                      {currentPatient.patient?.blood_group && (
+                        <div className="mb-2">
+                          <span className="inline-flex items-center px-2 py-1 rounded text-sm bg-red-100 text-red-800">
+                            <Heart className="h-3 w-3 mr-1" />
+                            {currentPatient.patient.blood_group}
+                          </span>
+                        </div>
+                      )}
                       
                       {currentPatient.patient?.allergies && currentPatient.patient.allergies.length > 0 && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-2 mb-2">
-                          <div className="flex items-center">
-                            <AlertTriangle className="h-4 w-4 text-red-600 mr-2" />
-                            <span className="text-sm font-medium text-red-800">Allergies:</span>
+                        <div className="mb-2">
+                          <div className="flex items-center mb-1">
+                            <AlertTriangle className="h-4 w-4 text-yellow-600 mr-1" />
+                            <span className="text-sm font-medium text-yellow-800">Allergies:</span>
                           </div>
-                          <div className="flex flex-wrap gap-1 mt-1">
+                          <div className="flex flex-wrap gap-1">
                             {currentPatient.patient.allergies.map((allergy, index) => (
-                              <span key={index} className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">
+                              <span key={index} className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">
                                 {allergy}
                               </span>
                             ))}
@@ -626,14 +626,14 @@ export const DoctorRoomPage: React.FC = () => {
                       )}
 
                       {currentPatient.patient?.medical_conditions && currentPatient.patient.medical_conditions.length > 0 && (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2">
-                          <div className="flex items-center">
-                            <Heart className="h-4 w-4 text-yellow-600 mr-2" />
-                            <span className="text-sm font-medium text-yellow-800">Medical Conditions:</span>
+                        <div>
+                          <div className="flex items-center mb-1">
+                            <Activity className="h-4 w-4 text-blue-600 mr-1" />
+                            <span className="text-sm font-medium text-blue-800">Conditions:</span>
                           </div>
-                          <div className="flex flex-wrap gap-1 mt-1">
+                          <div className="flex flex-wrap gap-1">
                             {currentPatient.patient.medical_conditions.map((condition, index) => (
-                              <span key={index} className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">
+                              <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
                                 {condition}
                               </span>
                             ))}
@@ -641,502 +641,425 @@ export const DoctorRoomPage: React.FC = () => {
                         </div>
                       )}
                     </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <Button
-                        onClick={() => setShowPrescriptionModal(true)}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        <FileText className="h-4 w-4 mr-2" />
-                        Prescription
-                      </Button>
-                      <Button
-                        onClick={() => setShowAdmissionModal(true)}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        <Bed className="h-4 w-4 mr-2" />
-                        Suggest Admission
-                      </Button>
-                      <Button
-                        onClick={() => setShowReferralModal(true)}
-                        className="bg-purple-600 hover:bg-purple-700"
-                      >
-                        <ArrowRight className="h-4 w-4 mr-2" />
-                        Refer Department
-                      </Button>
-                      <Button
-                        onClick={completeCurrentConsultation}
-                        className="bg-teal-600 hover:bg-teal-700"
-                      >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Complete
-                      </Button>
-                    </div>
                   </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                    <h4 className="text-xl font-semibold text-gray-900 mb-2">No Current Patient</h4>
-                    <p className="text-gray-600 mb-4">Call the next patient to start consultation</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Queue and Voice Notes */}
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Waiting Queue */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">Waiting Queue ({waitingPatients.length})</h3>
                     <Button
-                      onClick={handleCallNextPatient}
-                      disabled={waitingPatients.length === 0}
-                      className="bg-teal-600 hover:bg-teal-700"
+                      onClick={handleCallNext}
+                      disabled={waitingPatients.length === 0 || !!currentPatient}
+                      size="sm"
                     >
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Call Next Patient ({waitingPatients.length} waiting)
+                      Call Next
                     </Button>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {waitingPatients.map((patient, index) => (
+                      <div key={patient.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <div className="font-medium text-gray-900">
+                            #{patient.stn} - {patient.patient?.name}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            Age: {patient.patient?.age} | {patient.department}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Waiting: {Math.floor((Date.now() - new Date(patient.created_at).getTime()) / (1000 * 60))}m
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium text-blue-600">
+                            Position: {index + 1}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => startConsultation(patient.id)}
+                            disabled={!!currentPatient}
+                          >
+                            Start
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
 
-            {/* Voice Notes */}
-            {currentPatient && activeConsultation && (
-              <VoiceNoteRecorder
-                consultationId={activeConsultation.id}
-                doctorId={selectedDoctor}
-                onNoteSaved={() => refetch()}
-              />
-            )}
-          </div>
+                    {waitingPatients.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                        <p>No patients waiting</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Waiting Queue */}
-          <div className="space-y-6">
+              {/* Voice Notes */}
+              {selectedDoctorId && (
+                <VoiceNoteRecorder
+                  consultationId={consultations.find(c => c.status === 'in_progress')?.id || ''}
+                  doctorId={selectedDoctorId}
+                  onNoteSaved={() => speak('Voice note saved')}
+                />
+              )}
+            </div>
+
+            {/* Recent Consultations */}
             <Card>
               <CardHeader>
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <Clock className="h-5 w-5 mr-2" />
-                  Waiting Queue ({waitingPatients.length})
-                </h3>
+                <h3 className="text-lg font-semibold">Today's Consultations</h3>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {waitingPatients.map((visit, index) => (
-                    <div key={visit.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h5 className="font-semibold text-gray-900">#{visit.stn} {visit.patient?.name}</h5>
-                          <p className="text-sm text-gray-600">
-                            Age: {visit.patient?.age} • {formatTime(visit.created_at)}
-                          </p>
+                  {consultations.map((consultation) => (
+                    <div key={consultation.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {consultation.patient?.name} - Token #{consultation.visit?.stn}
                         </div>
-                        <div className="text-right">
-                          <div className="text-xs text-gray-500">Position</div>
-                          <div className="text-lg font-bold text-teal-600">#{index + 1}</div>
+                        <div className="text-sm text-gray-600">
+                          {formatTime(consultation.started_at)}
+                          {consultation.completed_at && ` - ${formatTime(consultation.completed_at)}`}
+                          {consultation.duration_minutes && ` (${consultation.duration_minutes}m)`}
                         </div>
                       </div>
-                      
-                      {index === 0 && !currentPatient && (
-                        <Button
-                          onClick={() => handleCallNextPatient()}
-                          size="sm"
-                          className="w-full mt-2 bg-teal-600 hover:bg-teal-700"
-                        >
-                          <UserCheck className="h-4 w-4 mr-2" />
-                          Call This Patient
-                        </Button>
-                      )}
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        consultation.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        consultation.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {consultation.status.replace('_', ' ').toUpperCase()}
+                      </span>
                     </div>
                   ))}
 
-                  {waitingPatients.length === 0 && (
+                  {consultations.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
-                      <Clock className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                      <p>No patients waiting</p>
+                      <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                      <p>No consultations today</p>
                     </div>
                   )}
                 </div>
               </CardContent>
             </Card>
+          </div>
+        )}
+      </main>
 
-            {/* Session Stats */}
+      {/* Start Session Modal */}
+      <Modal
+        isOpen={showStartModal}
+        onClose={() => {}}
+        title="Start Doctor Session"
+        size="md"
+      >
+        <div className="space-y-4">
+          <Select
+            label="Select Doctor"
+            value={selectedDoctorId}
+            onChange={(e) => setSelectedDoctorId(e.target.value)}
+            options={[
+              { value: '', label: 'Select a doctor' },
+              ...doctors.map(doctor => ({
+                value: doctor.id,
+                label: `${doctor.name} - ${doctor.specialization}`
+              }))
+            ]}
+            required
+          />
+
+          <Input
+            label="Room Name"
+            value={roomName}
+            onChange={(e) => setRoomName(e.target.value)}
+            placeholder="e.g., Room 101, Consultation Room A"
+            required
+          />
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-medium text-blue-900 mb-2">Session Features:</h4>
+            <ul className="text-sm text-blue-800 space-y-1">
+              <li>• Voice announcements for new patients</li>
+              <li>• Auto-refresh patient queue</li>
+              <li>• Digital prescription writing</li>
+              <li>• Voice note recording</li>
+              <li>• Real-time patient management</li>
+            </ul>
+          </div>
+
+          <Button
+            onClick={handleStartSession}
+            disabled={!selectedDoctorId || !roomName.trim()}
+            className="w-full"
+          >
+            Start Session
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Digital Prescription Modal */}
+      <Modal
+        isOpen={showPrescriptionModal}
+        onClose={() => setShowPrescriptionModal(false)}
+        title="Digital Prescription"
+        size="xl"
+      >
+        <div className="space-y-6">
+          {currentPatient && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="font-medium text-blue-900 mb-2">Patient: {currentPatient.patient?.name}</h4>
+              <p className="text-sm text-blue-800">
+                Age: {currentPatient.patient?.age} | Token: #{currentPatient.stn} | 
+                Phone: {currentPatient.patient?.phone}
+              </p>
+            </div>
+          )}
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <Input
+              label="Diagnosis"
+              value={currentPrescription.diagnosis}
+              onChange={(e) => setCurrentPrescription(prev => ({ ...prev, diagnosis: e.target.value }))}
+              placeholder="Primary diagnosis"
+            />
+
+            <Input
+              label="Symptoms"
+              value={currentPrescription.symptoms}
+              onChange={(e) => setCurrentPrescription(prev => ({ ...prev, symptoms: e.target.value }))}
+              placeholder="Patient symptoms"
+            />
+          </div>
+
+          {/* Voice Recording for Prescription */}
+          {voiceSupported && (
             <Card>
               <CardHeader>
-                <h3 className="text-lg font-semibold text-gray-900">Session Statistics</h3>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium">Voice Dictation</h4>
+                  <Button
+                    onClick={toggleRecording}
+                    variant={isRecording ? 'danger' : 'outline'}
+                    size="sm"
+                  >
+                    {isRecording ? <MicOff className="h-4 w-4 mr-2" /> : <Mic className="h-4 w-4 mr-2" />}
+                    {isRecording ? 'Stop Recording' : 'Start Recording'}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Session Started:</span>
-                    <span className="font-medium">{formatTime(session?.started_at || '')}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Patients Seen:</span>
-                    <span className="font-medium">{consultations.filter(c => c.status === 'completed').length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">In Queue:</span>
-                    <span className="font-medium">{waitingPatients.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Session Status:</span>
-                    <span className={`font-medium ${
-                      session?.session_status === 'active' ? 'text-green-600' :
-                      session?.session_status === 'break' ? 'text-yellow-600' :
-                      'text-red-600'
-                    }`}>
-                      {session?.session_status?.toUpperCase()}
-                    </span>
-                  </div>
+                <div className="min-h-[60px] p-3 border border-gray-300 rounded bg-gray-50">
+                  <p className="text-sm text-gray-900">
+                    {recordingTranscript || interimTranscript || 'Click "Start Recording" to dictate prescription...'}
+                  </p>
                 </div>
+                {recordingTranscript && (
+                  <div className="mt-2 flex space-x-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setCurrentPrescription(prev => ({
+                          ...prev,
+                          diagnosis: prev.diagnosis + ' ' + recordingTranscript
+                        }));
+                        setRecordingTranscript('');
+                      }}
+                    >
+                      Add to Diagnosis
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setCurrentPrescription(prev => ({
+                          ...prev,
+                          notes: prev.notes + ' ' + recordingTranscript
+                        }));
+                        setRecordingTranscript('');
+                      }}
+                    >
+                      Add to Notes
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
+          )}
+
+          {/* Medicines */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-medium text-gray-900">Medicines</h4>
+              <Button onClick={addMedicine} size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Medicine
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              {currentPrescription.medicines.map((medicine, index) => (
+                <Card key={index}>
+                  <CardContent className="pt-4">
+                    <div className="flex items-start justify-between mb-4">
+                      <h5 className="font-medium text-gray-900">Medicine {index + 1}</h5>
+                      {currentPrescription.medicines.length > 1 && (
+                        <Button
+                          onClick={() => removeMedicine(index)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <Input
+                        label="Medicine Name"
+                        value={medicine.name}
+                        onChange={(e) => updateMedicine(index, 'name', e.target.value)}
+                        placeholder="e.g., Paracetamol"
+                      />
+
+                      <Input
+                        label="Dosage"
+                        value={medicine.dosage}
+                        onChange={(e) => updateMedicine(index, 'dosage', e.target.value)}
+                        placeholder="e.g., 500mg"
+                      />
+
+                      <Input
+                        label="Frequency"
+                        value={medicine.frequency}
+                        onChange={(e) => updateMedicine(index, 'frequency', e.target.value)}
+                        placeholder="e.g., Twice daily"
+                      />
+
+                      <Input
+                        label="Duration"
+                        value={medicine.duration}
+                        onChange={(e) => updateMedicine(index, 'duration', e.target.value)}
+                        placeholder="e.g., 5 days"
+                      />
+                    </div>
+
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Instructions
+                      </label>
+                      <textarea
+                        value={medicine.instructions}
+                        onChange={(e) => updateMedicine(index, 'instructions', e.target.value)}
+                        placeholder="e.g., Take after meals"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        rows={2}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* Additional Fields */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Recommended Tests
+              </label>
+              <textarea
+                value={currentPrescription.tests}
+                onChange={(e) => setCurrentPrescription(prev => ({ ...prev, tests: e.target.value }))}
+                placeholder="Blood test, X-ray, etc."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Additional Notes
+              </label>
+              <textarea
+                value={currentPrescription.notes}
+                onChange={(e) => setCurrentPrescription(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Additional instructions or notes"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <Input
+            label="Follow-up Date (Optional)"
+            type="date"
+            value={currentPrescription.followUpDate}
+            onChange={(e) => setCurrentPrescription(prev => ({ ...prev, followUpDate: e.target.value }))}
+          />
+
+          {/* Action Buttons */}
+          <div className="flex space-x-3">
+            <Button
+              variant="outline"
+              onClick={() => setShowPrescriptionModal(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={printPrescription}
+              variant="outline"
+              className="flex-1"
+            >
+              <Printer className="h-4 w-4 mr-2" />
+              Print Preview
+            </Button>
+            <Button
+              onClick={savePrescription}
+              className="flex-1"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Prescription
+            </Button>
           </div>
         </div>
+      </Modal>
 
-        {/* Prescription Modal */}
-        <Modal
-          isOpen={showPrescriptionModal}
-          onClose={() => setShowPrescriptionModal(false)}
-          title="Create Digital Prescription"
-          size="lg"
-        >
-          <div className="space-y-4">
-            <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
-              <h4 className="font-semibold text-teal-900 mb-2">Patient: {currentPatient?.patient?.name}</h4>
-              <p className="text-sm text-teal-800">Token #{currentPatient?.stn} • {currentPatient?.patient?.uid}</p>
-            </div>
-
-            <Input
-              label="Diagnosis *"
-              value={prescriptionData.diagnosis}
-              onChange={(e) => setPrescriptionData(prev => ({ ...prev, diagnosis: e.target.value }))}
-              placeholder="Enter diagnosis"
-              required
-            />
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Prescription *
-              </label>
-              <textarea
-                value={prescriptionData.prescription}
-                onChange={(e) => setPrescriptionData(prev => ({ ...prev, prescription: e.target.value }))}
-                placeholder="1. Medicine name - Dosage - Frequency - Duration&#10;2. Medicine name - Dosage - Frequency - Duration"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                rows={6}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Additional Notes
-              </label>
-              <textarea
-                value={prescriptionData.notes}
-                onChange={(e) => setPrescriptionData(prev => ({ ...prev, notes: e.target.value }))}
-                placeholder="Additional instructions or notes"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                rows={3}
-              />
-            </div>
-
-            <Input
-              label="Follow-up in Days (0 = No follow-up)"
-              type="number"
-              value={prescriptionData.follow_up_days}
-              onChange={(e) => setPrescriptionData(prev => ({ ...prev, follow_up_days: parseInt(e.target.value) || 0 }))}
-              min="0"
-              max="90"
-              placeholder="7"
-            />
-
-            <div className="flex space-x-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowPrescriptionModal(false)}
-                className="flex-1"
+      {/* Credits Footer */}
+      <footer className="bg-white border-t border-gray-200 mt-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="text-center text-sm text-gray-600">
+            <p>
+              Developed by{' '}
+              <a 
+                href="https://instagram.com/aftabxplained" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="font-medium text-blue-600 hover:text-blue-800"
               >
-                Cancel
-              </Button>
-              <Button
-                onClick={savePrescription}
-                loading={loading}
-                className="flex-1 bg-green-600 hover:bg-green-700"
+                Aftab Alam [ASOSE Lajpat Nagar]
+              </a>
+              {' '}| Follow on Instagram:{' '}
+              <a 
+                href="https://instagram.com/aftabxplained" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="font-medium text-blue-600 hover:text-blue-800"
               >
-                <Save className="h-4 w-4 mr-2" />
-                Save Prescription
-              </Button>
-            </div>
+                @aftabxplained
+              </a>
+            </p>
           </div>
-        </Modal>
-
-        {/* Admission Suggestion Modal */}
-        <Modal
-          isOpen={showAdmissionModal}
-          onClose={() => setShowAdmissionModal(false)}
-          title="Suggest Patient Admission"
-          size="lg"
-        >
-          <div className="space-y-4">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-semibold text-blue-900 mb-2">Patient: {currentPatient?.patient?.name}</h4>
-              <p className="text-sm text-blue-800">This will send an admission request to the admin panel</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Select
-                label="Admission Type *"
-                value={admissionData.admission_type}
-                onChange={(e) => setAdmissionData(prev => ({ ...prev, admission_type: e.target.value }))}
-                options={[
-                  { value: 'planned', label: 'Planned Admission' },
-                  { value: 'emergency', label: 'Emergency Admission' },
-                  { value: 'observation', label: 'Observation' },
-                  { value: 'surgery', label: 'Surgery' }
-                ]}
-                required
-              />
-
-              <Select
-                label="Preferred Ward *"
-                value={admissionData.ward_type}
-                onChange={(e) => setAdmissionData(prev => ({ ...prev, ward_type: e.target.value }))}
-                options={[
-                  { value: 'general', label: 'General Ward' },
-                  { value: 'semi_private', label: 'Semi-Private' },
-                  { value: 'private', label: 'Private Room' },
-                  { value: 'icu', label: 'ICU' }
-                ]}
-                required
-              />
-            </div>
-
-            <Input
-              label="Estimated Duration (Days) *"
-              type="number"
-              value={admissionData.estimated_duration}
-              onChange={(e) => setAdmissionData(prev => ({ ...prev, estimated_duration: parseInt(e.target.value) || 1 }))}
-              min="1"
-              max="30"
-              required
-            />
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Reason for Admission *
-              </label>
-              <textarea
-                value={admissionData.reason}
-                onChange={(e) => setAdmissionData(prev => ({ ...prev, reason: e.target.value }))}
-                placeholder="Detailed medical reason for admission"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                rows={4}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Special Requirements
-              </label>
-              <textarea
-                value={admissionData.special_requirements}
-                onChange={(e) => setAdmissionData(prev => ({ ...prev, special_requirements: e.target.value }))}
-                placeholder="Any special medical requirements or monitoring needed"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                rows={2}
-              />
-            </div>
-
-            <div className="flex space-x-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowAdmissionModal(false)}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={suggestAdmission}
-                loading={loading}
-                className="flex-1 bg-blue-600 hover:bg-blue-700"
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Send to Admin
-              </Button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Department Referral Modal */}
-        <Modal
-          isOpen={showReferralModal}
-          onClose={() => setShowReferralModal(false)}
-          title="Refer to Another Department"
-          size="md"
-        >
-          <div className="space-y-4">
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-              <h4 className="font-semibold text-purple-900 mb-2">Patient: {currentPatient?.patient?.name}</h4>
-              <p className="text-sm text-purple-800">Refer patient to another department for specialized care</p>
-            </div>
-
-            <Select
-              label="Refer to Department *"
-              value={referralData.department}
-              onChange={(e) => setReferralData(prev => ({ ...prev, department: e.target.value }))}
-              options={[
-                { value: '', label: 'Select Department' },
-                { value: 'cardiology', label: 'Cardiology' },
-                { value: 'orthopedics', label: 'Orthopedics' },
-                { value: 'pediatrics', label: 'Pediatrics' },
-                { value: 'dermatology', label: 'Dermatology' },
-                { value: 'neurology', label: 'Neurology' },
-                { value: 'gynecology', label: 'Gynecology' }
-              ]}
-              required
-            />
-
-            <Select
-              label="Urgency Level *"
-              value={referralData.urgency}
-              onChange={(e) => setReferralData(prev => ({ ...prev, urgency: e.target.value }))}
-              options={[
-                { value: 'normal', label: 'Normal' },
-                { value: 'high', label: 'High Priority' },
-                { value: 'urgent', label: 'Urgent' }
-              ]}
-              required
-            />
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Reason for Referral *
-              </label>
-              <textarea
-                value={referralData.reason}
-                onChange={(e) => setReferralData(prev => ({ ...prev, reason: e.target.value }))}
-                placeholder="Medical reason for referring to specialist"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                rows={3}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Additional Notes
-              </label>
-              <textarea
-                value={referralData.notes}
-                onChange={(e) => setReferralData(prev => ({ ...prev, notes: e.target.value }))}
-                placeholder="Any additional information for the specialist"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                rows={2}
-              />
-            </div>
-
-            <div className="flex space-x-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowReferralModal(false)}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={sendReferral}
-                loading={loading}
-                className="flex-1 bg-purple-600 hover:bg-purple-700"
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Send Referral
-              </Button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Nurse Call Modal */}
-        <Modal
-          isOpen={showNurseCallModal}
-          onClose={() => setShowNurseCallModal(false)}
-          title="Call Nurse Assistance"
-          size="md"
-        >
-          <div className="space-y-4">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <h4 className="font-semibold text-yellow-900 mb-2 flex items-center">
-                <Bell className="h-5 w-5 mr-2" />
-                Nurse Call Request
-              </h4>
-              <p className="text-sm text-yellow-800">This will notify nursing staff for immediate assistance</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Select
-                label="Urgency Level *"
-                value={nurseCallData.urgency}
-                onChange={(e) => setNurseCallData(prev => ({ ...prev, urgency: e.target.value }))}
-                options={[
-                  { value: 'normal', label: 'Normal' },
-                  { value: 'high', label: 'High Priority' },
-                  { value: 'urgent', label: 'Urgent/Emergency' }
-                ]}
-                required
-              />
-
-              <Input
-                label="Room/Location"
-                value={nurseCallData.room_number || roomName}
-                onChange={(e) => setNurseCallData(prev => ({ ...prev, room_number: e.target.value }))}
-                placeholder="Room number or location"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Reason for Assistance *
-              </label>
-              <textarea
-                value={nurseCallData.reason}
-                onChange={(e) => setNurseCallData(prev => ({ ...prev, reason: e.target.value }))}
-                placeholder="What assistance is needed?"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                rows={3}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Special Instructions
-              </label>
-              <textarea
-                value={nurseCallData.special_instructions}
-                onChange={(e) => setNurseCallData(prev => ({ ...prev, special_instructions: e.target.value }))}
-                placeholder="Any special instructions for the nurse"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                rows={2}
-              />
-            </div>
-
-            <div className="flex space-x-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowNurseCallModal(false)}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={callNurse}
-                loading={loading}
-                className={`flex-1 ${
-                  nurseCallData.urgency === 'urgent' ? 'bg-red-600 hover:bg-red-700' :
-                  nurseCallData.urgency === 'high' ? 'bg-orange-600 hover:bg-orange-700' :
-                  'bg-blue-600 hover:bg-blue-700'
-                }`}
-              >
-                <Bell className="h-4 w-4 mr-2" />
-                Call Nurse
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      </main>
+        </div>
+      </footer>
     </div>
   );
 };
